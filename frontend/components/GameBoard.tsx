@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Player, Slime, Encounter } from '../types';
 import { MOCK_QUESTIONS, blendColors } from '../mockData';
 import TriviaModal from './TriviaModal';
+import { audio } from '../audio';
 
 interface Props {
   t: (key: string) => string;
@@ -168,6 +169,7 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
     }
 
     if (newEncounter) {
+      audio.playAlert();
       setEncounter(newEncounter);
       // Simulate bot votes immediately for simplicity in this prototype
       setTimeout(() => resolveEncounter(newEncounter!), 20000); // Auto resolve after 20s
@@ -226,6 +228,8 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
   const handleMapClick = (e: React.MouseEvent) => {
     if (isSpectator || encounter) return;
     if (!containerRef.current) return;
+
+    audio.playSquish();
 
     const rect = containerRef.current.getBoundingClientRect();
     // Calculate click position relative to the map, accounting for camera offset
