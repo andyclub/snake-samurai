@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, Slime } from '../types';
 import { COLORS, generateBots } from '../mockData';
+import { audio } from '../audio';
 
 interface Props {
   t: (key: string) => string;
@@ -58,6 +59,7 @@ const LobbyScreen: React.FC<Props> = ({ t, player, onUpdatePlayer, onStart, setI
   };
 
   const handleColorChange = (color: string) => {
+    audio.playPop();
     setLocalColor(color);
     onUpdatePlayer({ ...player, color });
   };
