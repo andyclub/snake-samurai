@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Encounter, Player } from '../types';
+import { audio } from '../audio';
 
 interface Props {
   t: (key: string) => string;
@@ -27,6 +28,7 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, onVote }) => {
 
   const handleSelect = (index: number) => {
     if (selectedOption !== null) return; // Only vote once
+    audio.playPop();
     setSelectedOption(index);
     onVote(index);
   };
