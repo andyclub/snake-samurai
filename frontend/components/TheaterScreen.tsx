@@ -1,6 +1,7 @@
 import React from 'react';
 import { Slime, Player } from '../types';
 import { Trophy, Target, Users, RefreshCw } from 'lucide-react';
+import { audio } from '../audio';
 
 interface Props {
   t: (key: string) => string;
@@ -75,7 +76,10 @@ const TheaterScreen: React.FC<Props> = ({ t, slimes, player, onRestart }) => {
         {/* Action */}
         <div className="text-center pt-8">
           <button 
-            onClick={onRestart}
+            onClick={() => {
+              audio.playPop();
+              onRestart();
+            }}
             className="inline-flex items-center gap-2 px-8 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-full font-bold transition-all border border-slate-600 hover:border-slate-400"
           >
             <RefreshCw className="w-5 h-5" />
