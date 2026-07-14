@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>听风大乱斗 | 聴風・乱戦</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+        /* Custom animations for jelly effect */
+        @keyframes jelly {
+            0%, 100% { transform: scale(1, 1); }
+            25% { transform: scale(1.05, 0.95); }
+            50% { transform: scale(0.95, 1.05); }
+            75% { transform: scale(1.02, 0.98); }
+        }
+        .animate-jelly {
+            animation: jelly 2s infinite ease-in-out;
+        }
+        
+        /* Comic irregular slime morphing */
+        @keyframes morph {
+            0% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+            33% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+            66% { border-radius: 50% 50% 30% 70% / 40% 40% 60% 50%; }
+            100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+        }
+        .slime-shape {
+            animation: morph 3s ease-in-out infinite;
+        }
+
+        /* Waving flag animation for team members */
+        @keyframes wave-flag {
+            0%, 100% { transform: rotate(0deg) translateY(0); }
+            25% { transform: rotate(-8deg) translateY(-2px); }
+            75% { transform: rotate(8deg) translateY(2px); }
+        }
+        .animate-wave {
+            animation: wave-flag 1.5s infinite ease-in-out;
+            transform-origin: left center;
+        }
+
+        @keyframes ripple {
+            0% { transform: scale(0); opacity: 1; }
+            100% { transform: scale(4); opacity: 0; }
+        }
+        .animate-ripple {
+            animation: ripple 0.6s linear forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white overflow-hidden select-none">
+    <div id="root" class="w-screen h-screen"></div>
+    <script type="module" src="./index.tsx"></script>
+<script type="module" src="/index.js"></script></body>
+</html>
