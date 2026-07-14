@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GamePhase, Language, Player, Slime, Encounter } from './types';
 import { translations, getBrowserLanguage } from './i18n';
-import { Globe, Settings, Power } from 'lucide-react';
+import { Globe, Terminal } from 'lucide-react';
 import GameOffScreen from './components/GameOffScreen';
 import LobbyScreen from './components/LobbyScreen';
 import GameBoard from './components/GameBoard';
 import TheaterScreen from './components/TheaterScreen';
+import { audio } from './audio';
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(getBrowserLanguage());
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [phase, setPhase] = useState<GamePhase>(GamePhase.OFF);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [adminCmd, setAdminCmd] = useState('');
   
   // Player State with LocalStorage Memory
   const [player, setPlayer] = useState<Player>(() => {
@@ -34,15 +36,63 @@ const App: React.FC = () => {
 
   const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
-  // Secret Admin Entrance Check
+  // Initialize Audio on first interaction
+  useEffect(() => {
+    const initAudio = () => audio.init();
+    document.addEventListener('click', initAudio, { once: true });
+    return () => document.removeEventListener('click', initAudio);
+  }, []);
+
+  // Handle BGM changes
+  useEffect(() => {
+    audio.setBGM(phase);
+  }, [phase]);
+
+  const executeCommand = useCallback((cmd: string) => {
+    switch (cmd.trim()) {
+      case '/jec.on':
+        setPhase(prev => {
+          if (prev === GamePhase.OFF) {
+            setIsSpectator(false);
+            return GamePhase.LOBBY;
+          }
+          return prev;
+        });
+        break;
+      case '/jec.off':
+        setPhase(GamePhase.OFF);
+        setSlimes([]);
+        setEncounter(null);
+        break;
+      case '/jec.restart':
+        setPhase(GamePhase.LOBBY);
+        setSlimes([]);
+        setEncounter(null);
+        setIsSpectator(false);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  // Secret Admin Entrance Check & Hash Commands
   useEffect(() => {
     const checkHash = () => {
-      setIsAdmin(window.location.hash === '#admin');
+      const hash = window.location.hash;
+      if (hash === '#/jec.on') {
+        setIsAdmin(true);
+      } else if (hash === '#/jec.off' && isAdmin) {
+        executeCommand('/jec.off');
+        window.location.hash = '#/jec.on';
+      } else if (hash === '#/jec.restart' && isAdmin) {
+        executeCommand('/jec.restart');
+        window.location.hash = '#/jec.on';
+      }
     };
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, []);
+  }, [isAdmin, executeCommand]);
 
   // Close lang menu on outside click
   useEffect(() => {
@@ -54,17 +104,6 @@ const App: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const toggleGame = () => {
-    if (phase === GamePhase.OFF) {
-      setPhase(GamePhase.LOBBY);
-      setIsSpectator(false);
-    } else {
-      setPhase(GamePhase.OFF);
-      setSlimes([]);
-      setEncounter(null);
-    }
-  };
 
   const handleJoinGame = (updatedPlayer: Player) => {
     setPlayer(updatedPlayer);
@@ -96,7 +135,10 @@ const App: React.FC = () => {
       {/* Custom Language Selector */}
       <div className="absolute top-4 right-4 z-50" ref={langMenuRef}>
         <button 
-          onClick={() => setShowLangMenu(!showLangMenu)}
+          onClick={() => {
+            audio.playPop();
+            setShowLangMenu(!showLangMenu);
+          }}
           className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/80 transition-colors border border-white/10 backdrop-blur-sm"
           title="Change Language"
         >
@@ -109,6 +151,7 @@ const App: React.FC = () => {
               <button
                 key={l.code}
                 onClick={() => {
+                  audio.playPop();
                   setLang(l.code);
                   setShowLangMenu(false);
                 }}
@@ -123,20 +166,33 @@ const App: React.FC = () => {
         )}
       </div>
 
-      {/* Secret Admin Toggle (Only visible if URL hash is #admin) */}
+      {/* Secret Admin Console */}
       {isAdmin && (
-        <button 
-          onClick={toggleGame}
-          className={`absolute bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-full font-bold transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)] border ${
-            phase === GamePhase.OFF 
-              ? 'bg-emerald-600/80 hover:bg-emerald-500 border-emerald-400 text-white' 
-              : 'bg-red-600/80 hover:bg-red-500 border-red-400 text-white'
-          }`}
-          title={t('admin.toggle')}
-        >
-          {phase === GamePhase.OFF ? <Power className="w-5 h-5" /> : <Settings className="w-5 h-5 animate-spin-slow" />}
-          <span>{phase === GamePhase.OFF ? 'Admin: 开启游戏' : 'Admin: 强制结束'}</span>
-        </button>
+        <div className="absolute bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+          <div className="text-xs text-slate-400 bg-black/80 p-3 rounded-lg border border-slate-700 text-left backdrop-blur-md shadow-xl">
+            <p className="text-emerald-400 font-bold mb-1 flex items-center gap-1"><Terminal className="w-3 h-3"/> Admin Console</p>
+            <p className="hover:text-white cursor-pointer" onClick={() => setAdminCmd('/jec.on')}>/jec.on - 开启游戏</p>
+            <p className="hover:text-white cursor-pointer" onClick={() => setAdminCmd('/jec.off')}>/jec.off - 强制停止</p>
+            <p className="hover:text-white cursor-pointer" onClick={() => setAdminCmd('/jec.restart')}>/jec.restart - 强制重开</p>
+          </div>
+          <form 
+            onSubmit={(e) => { 
+              e.preventDefault(); 
+              executeCommand(adminCmd); 
+              setAdminCmd(''); 
+            }}
+            className="flex gap-2 bg-black/90 p-2 rounded-lg border border-emerald-500/50 backdrop-blur-md shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+          >
+            <span className="text-emerald-400 font-mono py-1 pl-2">{'>'}</span>
+            <input 
+              type="text" 
+              value={adminCmd}
+              onChange={e => setAdminCmd(e.target.value)}
+              placeholder="输入命令..."
+              className="bg-transparent text-white font-mono outline-none w-48"
+            />
+          </form>
+        </div>
       )}
 
       {/* Main Routing */}
