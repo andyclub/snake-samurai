@@ -24,7 +24,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': '正确率',
     'theater.contribution': '团队贡献',
     'theater.next': '等待下一局',
-    'admin.toggle': '管理员: 开启/关闭游戏'
+    'admin.toggle': '管理员: 开启/关闭游戏',
+    'rules.title': '玩法规则',
+    'rules.1': '1. 移动：点击屏幕控制史莱姆移动。',
+    'rules.2': '2. 遭遇：与其他史莱姆碰撞将触发日语答题对战。',
+    'rules.3': '3. 战斗：答对即可吞噬失败者。若都答错，体积大者获胜。',
+    'rules.4': '4. 团队：融合后的多名玩家将共同投票作答，并综合移动方向。',
+    'rules.5': '5. 生存：躲避不断缩小的毒圈，成为活到最后的史莱姆！',
+    'rules.close': '我知道了'
   },
   'ja': {
     'app.title': '聴風・乱戦',
@@ -49,7 +56,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': '正解率',
     'theater.contribution': 'チーム貢献度',
     'theater.next': '次のゲームを待つ',
-    'admin.toggle': '管理者: ゲームON/OFF'
+    'admin.toggle': '管理者: ゲームON/OFF',
+    'rules.title': '遊び方・ルール',
+    'rules.1': '1. 移動：画面をタップしてスライムを移動させます。',
+    'rules.2': '2. 遭遇：他のスライムとぶつかると日本語クイズバトルが発生します。',
+    'rules.3': '3. バトル：正解すると敗者を飲み込みます。両者不正解の場合は大きい方が勝ちます。',
+    'rules.4': '4. チーム：融合したスライムは多数決で回答し、全員の入力で移動方向が決まります。',
+    'rules.5': '5. 生存：縮小するエリアを避け、最後まで生き残りましょう！',
+    'rules.close': '閉じる'
   },
   'en': {
     'app.title': 'Kazeabc Ransen',
@@ -74,7 +88,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': 'Accuracy',
     'theater.contribution': 'Team Contribution',
     'theater.next': 'Wait for next round',
-    'admin.toggle': 'Admin: Toggle Game'
+    'admin.toggle': 'Admin: Toggle Game',
+    'rules.title': 'How to Play',
+    'rules.1': '1. Move: Click on the screen to move your slime.',
+    'rules.2': '2. Encounter: Collide with others to trigger a Japanese quiz.',
+    'rules.3': '3. Battle: Answer correctly to devour the loser. If both are wrong, the larger slime wins.',
+    'rules.4': '4. Teamwork: Merged slimes vote on answers and move based on combined inputs.',
+    'rules.5': '5. Survive: Avoid the shrinking zone and be the last slime standing!',
+    'rules.close': 'Got it'
   },
   'zh-TW': {
     'app.title': '聽風大亂鬥',
@@ -99,7 +120,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': '正確率',
     'theater.contribution': '團隊貢獻',
     'theater.next': '等待下一局',
-    'admin.toggle': '管理員: 開啟/關閉遊戲'
+    'admin.toggle': '管理員: 開啟/關閉遊戲',
+    'rules.title': '玩法規則',
+    'rules.1': '1. 移動：點擊螢幕控制史萊姆移動。',
+    'rules.2': '2. 遭遇：與其他史萊姆碰撞將觸發日語答題對戰。',
+    'rules.3': '3. 戰鬥：答對即可吞噬失敗者。若都答錯，體積大者獲勝。',
+    'rules.4': '4. 團隊：融合後的多名玩家將共同投票作答，並綜合移動方向。',
+    'rules.5': '5. 生存：躲避不斷縮小的毒圈，成為活到最後的史萊姆！',
+    'rules.close': '我知道了'
   },
   'ko': {
     'app.title': '카제에이비씨 난전',
@@ -124,7 +152,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': '정확도',
     'theater.contribution': '팀 기여도',
     'theater.next': '다음 라운드 대기',
-    'admin.toggle': '관리자: 게임 켜기/끄기'
+    'admin.toggle': '관리자: 게임 켜기/끄기',
+    'rules.title': '게임 방법',
+    'rules.1': '1. 이동: 화면을 클릭하여 슬라임을 이동합니다.',
+    'rules.2': '2. 조우: 다른 슬라임과 충돌하면 일본어 퀴즈 배틀이 시작됩니다.',
+    'rules.3': '3. 전투: 정답을 맞히면 패자를 흡수합니다. 둘 다 틀리면 더 큰 슬라임이 승리합니다.',
+    'rules.4': '4. 팀워크: 병합된 슬라임은 투표로 답을 정하고, 입력된 방향을 종합하여 이동합니다.',
+    'rules.5': '5. 생존: 축소되는 구역을 피하고 끝까지 살아남으세요!',
+    'rules.close': '닫기'
   },
   'fr': {
     'app.title': 'Kazeabc Ransen',
@@ -149,7 +184,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': 'Précision',
     'theater.contribution': 'Contribution d\'équipe',
     'theater.next': 'Attendre la prochaine partie',
-    'admin.toggle': 'Admin: Basculer le jeu'
+    'admin.toggle': 'Admin: Basculer le jeu',
+    'rules.title': 'Comment jouer',
+    'rules.1': '1. Déplacement : Cliquez sur l\'écran pour déplacer votre slime.',
+    'rules.2': '2. Rencontre : Entrez en collision pour déclencher un quiz de japonais.',
+    'rules.3': '3. Combat : Répondez correctement pour dévorer le perdant. Si les deux ont tort, le plus gros gagne.',
+    'rules.4': '4. Équipe : Les slimes fusionnés votent pour les réponses et se déplacent selon les entrées combinées.',
+    'rules.5': '5. Survie : Évitez la zone qui rétrécit et soyez le dernier survivant !',
+    'rules.close': 'Fermer'
   },
   'nl': {
     'app.title': 'Kazeabc Ransen',
@@ -174,7 +216,14 @@ export const translations: Record<Language, Record<string, string>> = {
     'theater.accuracy': 'Nauwkeurigheid',
     'theater.contribution': 'Teambijdrage',
     'theater.next': 'Wacht op volgende ronde',
-    'admin.toggle': 'Admin: Spel in/uitschakelen'
+    'admin.toggle': 'Admin: Spel in/uitschakelen',
+    'rules.title': 'Hoe te spelen',
+    'rules.1': '1. Verplaatsen: Klik op het scherm om je slijm te verplaatsen.',
+    'rules.2': '2. Ontmoeting: Bots met anderen om een Japanse quiz te starten.',
+    'rules.3': '3. Gevecht: Geef het juiste antwoord om de verliezer te verslinden. Bij een fout antwoord van beide wint de grootste.',
+    'rules.4': '4. Teamwerk: Samengevoegde slijmen stemmen op antwoorden en bewegen op basis van gecombineerde input.',
+    'rules.5': '5. Overleven: Vermijd de krimpende zone en blijf als laatste over!',
+    'rules.close': 'Sluiten'
   }
 };
 
