@@ -70,6 +70,18 @@ const LobbyScreen: React.FC<Props> = ({ t, player, onUpdatePlayer, onStart, setI
       <div className="absolute top-10 left-10 w-32 h-32 bg-blue-500/20 rounded-full blur-xl animate-pulse"></div>
       <div className="absolute bottom-10 right-10 w-48 h-48 bg-emerald-500/20 rounded-full blur-xl animate-pulse delay-1000"></div>
 
+      {/* Game URL QR Code (Bottom Left) */}
+      <div className="absolute bottom-6 left-6 flex flex-col items-center gap-2 bg-black/40 p-3 rounded-xl backdrop-blur-sm border border-white/10 z-20 hidden sm:flex">
+        <div className="bg-white p-1.5 rounded-lg">
+          <img 
+            src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=https://g.kazeabc.com" 
+            alt="Game QR" 
+            className="w-20 h-20"
+          />
+        </div>
+        <span className="text-xs text-slate-300 font-bold">{t('qr.game')}</span>
+      </div>
+
       <div className="z-10 bg-black/40 p-8 rounded-3xl backdrop-blur-md border border-white/10 w-full max-w-md flex flex-col items-center">
         <h2 className="text-3xl font-bold text-white mb-6">{t('lobby.recruiting')}</h2>
         
