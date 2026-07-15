@@ -73,8 +73,8 @@ const TheaterScreen: React.FC<Props> = ({ t, slimes, player, onRestart }) => {
           </div>
         </div>
 
-        {/* Action */}
-        <div className="text-center pt-8">
+        {/* Action & QR Code */}
+        <div className="text-center pt-8 flex flex-col items-center gap-8">
           <button 
             onClick={() => {
               audio.playPop();
@@ -85,6 +85,17 @@ const TheaterScreen: React.FC<Props> = ({ t, slimes, player, onRestart }) => {
             <RefreshCw className="w-5 h-5" />
             {t('theater.next')}
           </button>
+
+          <div className="flex flex-col items-center gap-2 bg-black/30 p-4 rounded-2xl border border-white/5">
+            <div className="bg-white p-1.5 rounded-lg">
+              <img 
+                src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://g.kazeabc.com" 
+                alt="Game QR" 
+                className="w-24 h-24"
+              />
+            </div>
+            <span className="text-sm text-slate-400 font-medium">{t('qr.game')}</span>
+          </div>
         </div>
 
       </div>
