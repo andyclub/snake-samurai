@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GamePhase, Language, Player, Slime, Encounter } from './types';
 import { translations, getBrowserLanguage } from './i18n';
-import { Globe, Terminal } from 'lucide-react';
+import { Globe, Terminal, HelpCircle, X } from 'lucide-react';
 import GameOffScreen from './components/GameOffScreen';
 import LobbyScreen from './components/LobbyScreen';
 import GameBoard from './components/GameBoard';
@@ -11,6 +11,7 @@ import { audio } from './audio';
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(getBrowserLanguage());
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const [phase, setPhase] = useState<GamePhase>(GamePhase.OFF);
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminCmd, setAdminCmd] = useState('');
@@ -132,43 +133,9 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-full h-full font-sans">
-      {/* Custom Language Selector */}
-      <div className="absolute top-4 right-4 z-50" ref={langMenuRef}>
-        <button 
-          onClick={() => {
-            audio.playPop();
-            setShowLangMenu(!showLangMenu);
-          }}
-          className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/80 transition-colors border border-white/10 backdrop-blur-sm"
-          title="Change Language"
-        >
-          <Globe className="w-6 h-6" />
-        </button>
-        
-        {showLangMenu && (
-          <div className="absolute right-0 mt-2 w-36 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2">
-            {languages.map((l) => (
-              <button
-                key={l.code}
-                onClick={() => {
-                  audio.playPop();
-                  setLang(l.code);
-                  setShowLangMenu(false);
-                }}
-                className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                  lang === l.code ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Secret Admin Console */}
       {isAdmin && (
-        <div className="absolute bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        <div className="absolute top-6 right-6 z-50 flex flex-col items-end gap-2">
           <div className="text-xs text-slate-400 bg-black/80 p-3 rounded-lg border border-slate-700 text-left backdrop-blur-md shadow-xl">
             <p className="text-emerald-400 font-bold mb-1 flex items-center gap-1"><Terminal className="w-3 h-3"/> Admin Console</p>
             <p className="hover:text-white cursor-pointer" onClick={() => setAdminCmd('/jec.on')}>/jec.on - 开启游戏</p>
@@ -192,6 +159,36 @@ const App: React.FC = () => {
               className="bg-transparent text-white font-mono outline-none w-48"
             />
           </form>
+        </div>
+      )}
+
+      {/* Rules Modal */}
+      {showRules && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-emerald-400">{t('rules.title')}</h2>
+              <button 
+                onClick={() => { audio.playPop(); setShowRules(false); }} 
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="space-y-3 text-slate-200 text-sm leading-relaxed">
+              <p>{t('rules.1')}</p>
+              <p>{t('rules.2')}</p>
+              <p>{t('rules.3')}</p>
+              <p>{t('rules.4')}</p>
+              <p>{t('rules.5')}</p>
+            </div>
+            <button 
+              onClick={() => { audio.playPop(); setShowRules(false); }}
+              className="mt-6 w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-colors"
+            >
+              {t('rules.close')}
+            </button>
+          </div>
         </div>
       )}
 
@@ -229,6 +226,58 @@ const App: React.FC = () => {
           onRestart={() => setPhase(GamePhase.LOBBY)} 
         />
       )}
+
+      {/* Custom Language Selector, Help & Version Info (Bottom Right) */}
+      <div className="absolute bottom-6 right-6 z-50 flex items-center gap-3" ref={langMenuRef}>
+        <div className="flex flex-col items-end text-xs text-slate-500/80 font-mono select-none pointer-events-none">
+          <span>v156</span>
+          <span>10-26-2023</span>
+        </div>
+        
+        <button 
+          onClick={() => {
+            audio.playPop();
+            setShowRules(true);
+          }}
+          className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/80 transition-colors border border-white/10 backdrop-blur-sm"
+          title={t('rules.title')}
+        >
+          <HelpCircle className="w-6 h-6" />
+        </button>
+
+        <div className="relative">
+          <button 
+            onClick={() => {
+              audio.playPop();
+              setShowLangMenu(!showLangMenu);
+            }}
+            className="p-2 bg-black/40 hover:bg-black/60 rounded-full text-white/80 transition-colors border border-white/10 backdrop-blur-sm"
+            title="Change Language"
+          >
+            <Globe className="w-6 h-6" />
+          </button>
+          
+          {showLangMenu && (
+            <div className="absolute bottom-full right-0 mb-2 w-36 bg-slate-800 border border-slate-600 rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-2">
+              {languages.map((l) => (
+                <button
+                  key={l.code}
+                  onClick={() => {
+                    audio.playPop();
+                    setLang(l.code);
+                    setShowLangMenu(false);
+                  }}
+                  className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                    lang === l.code ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
