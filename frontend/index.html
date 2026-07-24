@@ -2,10 +2,38 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#052e2b">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="聴風乱戦">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/app-icon-180.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/app-icon-192.png">
+    <link rel="manifest" href="/manifest.webmanifest">
     <title>听风大乱斗 | 聴風・乱戦</title>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-K0MWYL9XJB"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-K0MWYL9XJB');
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
         <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body, #root {
+            width: 100%; max-width: 100vw; height: 100%; max-height: 100dvh;
+            margin: 0; overflow: hidden; overscroll-behavior: none;
+        }
+        body {
+            position: fixed; inset: 0; touch-action: pan-y;
+            -webkit-text-size-adjust: 100%;
+        }
+        img { -webkit-user-drag: none; user-select: none; }
+
         /* Custom animations for jelly effect */
         @keyframes jelly {
             0%, 100% { transform: scale(1, 1); }
@@ -46,10 +74,183 @@
         .animate-ripple {
             animation: ripple 0.6s linear forwards;
         }
+
+        @keyframes countdown-impact {
+            0% { transform: scale(2.8) rotate(-7deg); opacity: 0; filter: blur(15px); }
+            18% { transform: scale(.78) rotate(3deg); opacity: 1; filter: blur(0); }
+            34% { transform: scale(1.08) rotate(-1deg); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes countdown-ring {
+            0% { transform: scale(.15); opacity: 1; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+        @keyframes countdown-flash {
+            0% { background: rgba(255,255,255,.95); }
+            18% { background: rgba(16,185,129,.34); }
+            100% { background: radial-gradient(circle, rgba(6,78,59,.9), rgba(2,6,23,.94)); }
+        }
+        @keyframes countdown-shake {
+            0%, 100% { transform: translate(0); }
+            20% { transform: translate(-8px, 5px); }
+            40% { transform: translate(7px, -5px); }
+            60% { transform: translate(-5px, -3px); }
+            80% { transform: translate(4px, 3px); }
+        }
+        .countdown-screen { animation: countdown-shake .38s ease-out; }
+        .countdown-impact { animation: countdown-impact .55s cubic-bezier(.2,.9,.2,1); }
+        .countdown-ring { animation: countdown-ring .85s ease-out forwards; }
+        .countdown-flash { animation: countdown-flash .42s ease-out forwards; }
+
+        @keyframes battle-burst {
+            0% { transform: scale(.1); opacity: 1; }
+            72% { opacity: .9; }
+            100% { transform: scale(3.2); opacity: 0; }
+        }
+        .battle-burst {
+            position: absolute; width: 90px; height: 90px; left: -45px; top: -45px;
+            border: 10px solid currentColor; border-radius: 999px;
+            animation: battle-burst .85s ease-out forwards; box-shadow: 0 0 34px currentColor;
+        }
+        .battle-burst.split { color: #facc15; }
+        .battle-burst.devour { color: #fb7185; }
+
+        @keyframes split-left {
+            0% { transform: translate(0) scale(.4) rotate(0); opacity: 0; }
+            25% { opacity: 1; }
+            100% { transform: translate(-125px, -58px) scale(1.3) rotate(-28deg); opacity: 0; }
+        }
+        @keyframes split-right {
+            0% { transform: translate(0) scale(.4) rotate(0); opacity: 0; }
+            25% { opacity: 1; }
+            100% { transform: translate(125px, 58px) scale(1.3) rotate(28deg); opacity: 0; }
+        }
+        .split-fragment {
+            position: absolute; left: -24px; top: -28px; font-size: 48px;
+            filter: drop-shadow(0 0 16px #facc15); pointer-events: none;
+        }
+        .split-left { animation: split-left 1s cubic-bezier(.1,.8,.2,1) forwards; }
+        .split-right { animation: split-right 1s cubic-bezier(.1,.8,.2,1) forwards; }
+
+        @keyframes devour-vortex {
+            0% { transform: scale(.25) rotate(0); opacity: 1; }
+            100% { transform: scale(2.5) rotate(720deg); opacity: 0; }
+        }
+        .devour-vortex {
+            position: absolute; left: -42px; top: -42px; width: 84px; height: 84px;
+            border: 13px dotted #fb7185; border-radius: 999px;
+            filter: drop-shadow(0 0 16px #fb7185);
+            animation: devour-vortex 1s ease-in forwards; pointer-events: none;
+        }
+        @keyframes battle-word {
+            0% { transform: translate(-50%, -50%) scale(.2) rotate(-10deg); opacity: 0; }
+            25%, 65% { transform: translate(-50%, -85%) scale(1.15) rotate(2deg); opacity: 1; }
+            100% { transform: translate(-50%, -140%) scale(.8); opacity: 0; }
+        }
+        .battle-word {
+            position: absolute; left: 0; top: -42px; white-space: nowrap; z-index: 70;
+            color: white; font-size: 24px; font-weight: 1000; letter-spacing: .08em;
+            text-shadow: 0 3px 0 #111827, 0 0 18px #facc15;
+            animation: battle-word 1.25s ease-out forwards; pointer-events: none;
+        }
+        @keyframes slime-split-spawn {
+            0% { transform: scale(.12) rotate(-18deg); filter: brightness(3); }
+            45% { transform: scale(1.38) rotate(7deg); filter: brightness(1.7); }
+            72% { transform: scale(.88) rotate(-3deg); }
+            100% { transform: scale(1) rotate(0); filter: brightness(1); }
+        }
+        .slime-split-spawn { animation: slime-split-spawn .8s cubic-bezier(.18,.89,.32,1.28); }
+
+        @keyframes result-banner {
+            0% { transform: translate(-50%, -160%) scale(.65); opacity: 0; }
+            12% { transform: translate(-50%, 0) scale(1.08); opacity: 1; }
+            20%, 78% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -150%) scale(.85); opacity: 0; }
+        }
+        .battle-result-banner {
+            position: absolute; left: 50%; top: 72px; z-index: 80; width: min(92vw, 560px);
+            padding: 14px 20px; border: 4px solid white; border-radius: 22px; text-align: center;
+            background: linear-gradient(135deg, rgba(15,23,42,.96), rgba(30,41,59,.94));
+            box-shadow: 0 0 0 5px rgba(15,23,42,.65), 0 18px 50px rgba(0,0,0,.55);
+            animation: result-banner 5.4s cubic-bezier(.2,.8,.2,1) forwards; pointer-events: none;
+        }
+        .battle-result-banner.split { border-color: #facc15; box-shadow: 0 0 0 5px rgba(113,63,18,.6), 0 0 40px rgba(250,204,21,.65); }
+        .battle-result-banner.devour { border-color: #fb7185; box-shadow: 0 0 0 5px rgba(136,19,55,.55), 0 0 42px rgba(251,113,133,.7); }
+        .battle-result-banner.player-win { background: rgba(69,10,10,.96); border-color: #f87171; box-shadow: 0 0 0 5px rgba(153,27,27,.5), 0 0 42px rgba(239,68,68,.72); }
+        .battle-result-banner.player-lose { background: rgba(23,37,84,.96); border-color: #60a5fa; box-shadow: 0 0 0 5px rgba(30,64,175,.5), 0 0 42px rgba(59,130,246,.72); }
+        .battle-answer-explanation { animation: answer-explanation-in .18s cubic-bezier(.2,.9,.2,1) both; }
+        @keyframes answer-explanation-in { from { opacity: 0; transform: scale(.82); filter: brightness(2); } to { opacity: 1; transform: scale(1); filter: brightness(1); } }
+        .duel-lock-spark {
+            position: absolute; z-index: 45; pointer-events: none; transform: translate(-50%,-50%);
+            display: flex; align-items: center; gap: 2px; color: #fde047;
+            font-size: 26px; filter: drop-shadow(0 0 8px #f97316) drop-shadow(0 0 16px #ef4444);
+            animation: duel-lock-pulse .42s steps(2,end) infinite;
+        }
+        .duel-lock-spark span:nth-child(2) { color: white; font-size: 38px; animation: duel-lock-spin .65s linear infinite; }
+        @keyframes duel-lock-pulse { 0% { opacity: .38; transform: translate(-50%,-50%) scale(.75) rotate(-6deg); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1.25) rotate(6deg); } }
+        @keyframes duel-lock-spin { to { transform: rotate(180deg); } }
+
+        .player-battle-cinematic {
+            position: fixed; inset: 0; z-index: 95; overflow: hidden; pointer-events: none;
+            display: flex; align-items: center; justify-content: center;
+            background: radial-gradient(circle, rgba(15,23,42,.18), rgba(2,6,23,.82));
+            animation: player-cinematic-screen 3.35s ease-out forwards;
+        }
+        .player-cinematic-flash { position: absolute; inset: 0; animation: player-cinematic-flash .7s ease-out forwards; }
+        .player-battle-cinematic.win .player-cinematic-flash { background: #ef4444; }
+        .player-battle-cinematic.lose .player-cinematic-flash { background: #3b82f6; }
+        .player-cinematic-ring {
+            position: absolute; width: 32vmin; height: 32vmin; border: 5vmin solid currentColor; border-radius: 999px;
+            color: #ef4444; filter: drop-shadow(0 0 35px currentColor); animation: player-cinematic-ring 1.25s ease-out forwards;
+        }
+        .player-battle-cinematic.lose .player-cinematic-ring { color: #3b82f6; }
+        .player-cinematic-winner, .player-cinematic-loser { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        .player-winner-slime { animation: player-winner-charge 2.7s cubic-bezier(.15,.85,.2,1) both; filter: drop-shadow(0 0 55px #ef4444); }
+        .player-cinematic-title {
+            position: absolute; left: 50%; top: 18%; transform: translateX(-50%); width: 96%; text-align: center;
+            color: white; font-size: clamp(42px, 11vw, 118px); line-height: .9; font-weight: 1000; font-style: italic;
+            text-shadow: 0 6px 0 #450a0a, 0 0 35px #ef4444; animation: player-title-slam 3.15s ease-out both;
+        }
+        .player-battle-cinematic.lose .player-cinematic-title { color: #dbeafe; text-shadow: 0 6px 0 #172554, 0 0 38px #3b82f6; }
+        .player-split-piece { position: absolute; left: 50%; top: 50%; margin: -19vmin 0 0 -19vmin; filter: drop-shadow(0 0 45px #fb7185); }
+        .player-split-piece-left { clip-path: polygon(0 0, 54% 0, 43% 100%, 0 100%); animation: player-split-left 2.45s cubic-bezier(.12,.78,.15,1) both; }
+        .player-split-piece-right { clip-path: polygon(54% 0, 100% 0, 100% 100%, 43% 100%); animation: player-split-right 2.45s cubic-bezier(.12,.78,.15,1) both; }
+        .player-cinematic-impact { position: absolute; left: 50%; top: 50%; font-size: 22vmin; transform: translate(-50%,-50%); animation: player-impact 1.2s ease-out both; }
+        .player-devoured-slime { position: absolute; left: 50%; top: 50%; margin: -21vmin 0 0 -21vmin; animation: player-devoured 2.5s cubic-bezier(.55,0,.9,.45) both; }
+        .player-devour-hole { position: absolute; left: 50%; top: 50%; font-size: 34vmin; animation: player-devour-hole 2.6s ease-in-out both; filter: drop-shadow(0 0 40px #fb7185); }
+        @keyframes player-cinematic-screen { 0% { opacity: 0; } 8%, 82% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes player-cinematic-flash { 0% { opacity: .95; } 28% { opacity: .18; } 100% { opacity: 0; } }
+        @keyframes player-cinematic-ring { 0% { transform: scale(.08); opacity: 1; } 100% { transform: scale(4.8); opacity: 0; } }
+        @keyframes player-winner-charge { 0% { transform: translateY(45vh) scale(.18) rotate(-18deg); } 30% { transform: translateY(4vh) scale(1.35) rotate(6deg); } 52%, 80% { transform: translateY(8vh) scale(1) rotate(0); } 100% { transform: translateY(-35vh) scale(1.7); opacity: 0; } }
+        @keyframes player-title-slam { 0% { transform: translate(-50%,-150%) scale(2.2) rotate(-7deg); opacity: 0; } 18% { transform: translate(-50%,0) scale(.82) rotate(3deg); opacity: 1; } 28%, 80% { transform: translate(-50%,0) scale(1) rotate(-1deg); opacity: 1; } 100% { transform: translate(-50%,-90%) scale(1.3); opacity: 0; } }
+        @keyframes player-split-left { 0%, 18% { transform: translate(0) scale(.4); opacity: 0; } 32% { transform: translate(0) scale(1.4); opacity: 1; } 100% { transform: translate(-44vw,-8vh) rotate(-35deg) scale(.82); opacity: 0; } }
+        @keyframes player-split-right { 0%, 18% { transform: translate(0) scale(.4); opacity: 0; } 32% { transform: translate(0) scale(1.4); opacity: 1; } 100% { transform: translate(44vw,8vh) rotate(35deg) scale(.82); opacity: 0; } }
+        @keyframes player-impact { 0%, 18% { transform: translate(-50%,-50%) scale(.05) rotate(0); opacity: 0; } 32% { transform: translate(-50%,-50%) scale(1.45) rotate(18deg); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(2.5) rotate(-25deg); opacity: 0; } }
+        @keyframes player-devoured { 0%, 15% { transform: translate(-34vw,8vh) scale(1.3) rotate(-8deg); opacity: 1; } 72% { transform: translate(0) scale(.55) rotate(360deg); opacity: 1; } 100% { transform: translate(0) scale(.02) rotate(900deg); opacity: 0; } }
+        @keyframes player-devour-hole { 0% { transform: translate(-50%,-50%) scale(.05) rotate(0); opacity: 0; } 22%, 76% { transform: translate(-50%,-50%) scale(1) rotate(500deg); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(2.2) rotate(900deg); opacity: 0; } }
+
+        .trivia-battle-fx {
+            position: relative; height: 132px; margin-top: 14px; overflow: hidden;
+            border: 2px solid rgba(250,204,21,.45); border-radius: 18px;
+            background: radial-gradient(circle at center, rgba(250,204,21,.22), rgba(15,23,42,.92) 68%);
+        }
+        .trivia-fx-winner { position: absolute; left: 18%; top: 8px; text-align: center; z-index: 3; animation: trivia-winner-charge 1.15s ease-out both; }
+        .trivia-fx-winner b { display: block; margin-top: -12px; color: #fde68a; font-size: 12px; white-space: nowrap; }
+        .trivia-fx-impact { position: absolute; left: 50%; top: 44%; z-index: 5; font-size: 38px; transform: translate(-50%,-50%); animation: trivia-impact .8s ease-out both; }
+        .trivia-fx-devoured { position: absolute; right: 18%; top: 18px; animation: trivia-devoured 1.35s ease-in both; transform-origin: left center; }
+        .trivia-fx-split { position: absolute; right: 12%; top: 25px; width: 120px; height: 70px; }
+        .trivia-fx-split > * { position: absolute; }
+        .trivia-fx-split .split-piece-1 { left: 28px; animation: trivia-split-a 1.25s ease-out both; }
+        .trivia-fx-split .split-piece-2 { left: 28px; animation: trivia-split-b 1.25s ease-out both; }
+        @keyframes trivia-winner-charge { 0% { transform: translateX(-40px) scale(.6); } 55% { transform: translateX(30px) scale(1.25); } 100% { transform: translateX(0) scale(1); } }
+        @keyframes trivia-impact { 0% { transform: translate(-50%,-50%) scale(.1) rotate(0); opacity: 0; } 45% { transform: translate(-50%,-50%) scale(1.8) rotate(22deg); opacity: 1; } 100% { transform: translate(-50%,-50%) scale(1) rotate(-8deg); } }
+        @keyframes trivia-devoured { 0%, 25% { transform: translateX(0) scale(1); opacity: 1; } 100% { transform: translateX(-155px) scale(.05) rotate(540deg); opacity: 0; } }
+        @keyframes trivia-split-a { 0%, 30% { transform: translate(0) scale(1.2); opacity: 1; } 100% { transform: translate(-30px,-13px) rotate(-22deg) scale(.8); } }
+        @keyframes trivia-split-b { 0%, 30% { transform: translate(0) scale(1.2); opacity: 1; } 100% { transform: translate(38px,14px) rotate(24deg) scale(.8); } }
     </style>
 </head>
 <body class="bg-slate-900 text-white overflow-hidden select-none">
     <div id="root" class="w-screen h-screen"></div>
     <script type="module" src="./index.tsx"></script>
-<script type="module" src="/index.js"></script></body>
+</body>
 </html>

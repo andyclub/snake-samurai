@@ -2,6 +2,8 @@
   "name": "kazeabc-ransen",
   "workspaces": ["frontend", "backend"], 
   "scripts": {
+    "build": "npm run build --prefix frontend",
+    "start": "npm run preview --prefix frontend",
     "dev-frontend": "npm run dev --prefix frontend",
     "dev-backend": "npm run dev --prefix backend",
     "dev": "concurrently \"npm run dev-frontend\" \"npm run dev-backend\""
