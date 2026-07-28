@@ -13,6 +13,9 @@ import { useRansenMultiplayer } from './useRansenMultiplayer';
 import { callRansenControl, claimRansenStart, persistRansenSnapshot } from './supabase';
 
 const ARENA_ID = new URLSearchParams(window.location.search).get('arena') === 'bousai-toyama' ? 'bousai-toyama' : 'main';
+const IS_REMOTE = window.location.pathname.replace(/\/$/, '') === '/r';
+const CONTROL_CHANNEL = `kazeabc-control:${ARENA_ID}`;
+const CONTROL_STORAGE_KEY = `kazeabc_control:${ARENA_ID}`;
 const GAME_URL = ARENA_ID === 'bousai-toyama' ? 'https://g.kazeabc.com/?arena=bousai-toyama' : 'https://g.kazeabc.com';
 const QR_URL = `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(GAME_URL)}`;
 const KATAKANA = ['アオイ','カゼ','ソラ','ナギ','リン','ユキ','ハル','レイ','ミオ','ルイ'];
@@ -81,6 +84,7 @@ const App: React.FC = () => {
 
   // Initialize Audio on first interaction
   useEffect(() => {
+    if (IS_REMOTE) return;
     const initAudio = () => audio.init();
     document.addEventListener('pointerdown', initAudio, { passive: true });
     document.addEventListener('touchend', initAudio, { passive: true });
@@ -97,6 +101,7 @@ const App: React.FC = () => {
 
   // Handle BGM changes
   useEffect(() => {
+    if (IS_REMOTE) return;
     // Playing and theater choose finer-grained scenes inside their screens.
     if (phase === GamePhase.OFF || phase === GamePhase.LOBBY) audio.setBGM(phase);
   }, [phase]);
@@ -104,8 +109,8 @@ const App: React.FC = () => {
   const executeCommand = useCallback((cmd: string, broadcast = true, payload: Record<string, any> = {}) => {
     const normalized = cmd.replace('/jec.', '');
     if (broadcast) {
-      localStorage.setItem('kazeabc_control', JSON.stringify({ command: normalized, at: Date.now() }));
-      new BroadcastChannel('kazeabc-control').postMessage(normalized);
+      localStorage.setItem(CONTROL_STORAGE_KEY, JSON.stringify({ command: normalized, at: Date.now() }));
+      new BroadcastChannel(CONTROL_CHANNEL).postMessage(normalized);
     }
     switch (normalized) {
       case 'on':
@@ -359,10 +364,10 @@ const App: React.FC = () => {
   }, [gameStartedAt, phase, updateEncounters]);
 
   useEffect(() => {
-    const channel = new BroadcastChannel('kazeabc-control');
+    const channel = new BroadcastChannel(CONTROL_CHANNEL);
     channel.onmessage = event => executeCommand(String(event.data), false);
     const storage = (event: StorageEvent) => {
-      if (event.key === 'kazeabc_control' && event.newValue) executeCommand(JSON.parse(event.newValue).command, false);
+      if (event.key === CONTROL_STORAGE_KEY && event.newValue) executeCommand(JSON.parse(event.newValue).command, false);
     };
     window.addEventListener('storage', storage);
     return () => { channel.close(); window.removeEventListener('storage', storage); };
