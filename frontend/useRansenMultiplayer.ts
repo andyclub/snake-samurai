@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { Encounter, GamePhase, Player, Slime } from './types';
+import { AuditEvent, Encounter, GamePhase, MatchHistory, Player, Slime } from './types';
 import { callRansenControl, supabase } from './supabase';
 import { generateRandomBot } from './mockData';
 
-export type Snapshot = { phase: GamePhase; slimes: Slime[]; encounters: Encounter[]; startedAt?: number | null; lobbyEndsAt?: number | null; arenaName?: string; serverNow?: number };
+export type Snapshot = { phase: GamePhase; slimes: Slime[]; encounters: Encounter[]; startedAt?: number | null; lobbyEndsAt?: number | null; arenaName?: string; serverNow?: number; auditEvents?: AuditEvent[]; endReason?: 'timeout' | 'last_slime' };
 type Connection = 'connecting' | 'online' | 'error';
 export type CommandResult = { ok: boolean; message: string };
+export type HistoryResult = { ok: boolean; message?: string; page: number; pageSize: number; total: number; totalPages: number; matches: MatchHistory[] };
 
 const normalizeEncounters = (slimes: Slime[], encounters: Encounter[], clockShift = 0) => {
   const allIds = new Set(slimes.map(slime => slime.id));
@@ -105,6 +106,7 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
                 startedAt: typeof stored.startedAt === 'number' ? stored.startedAt + clockShift : null,
                 lobbyEndsAt: null,
                 arenaName: control.arenaName,
+                auditEvents: Array.isArray(stored.auditEvents) ? stored.auditEvents as AuditEvent[] : [],
               });
             }
           } else if (control.phase === GamePhase.THEATER) {
@@ -117,6 +119,7 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
               startedAt: typeof stored.startedAt === 'number' ? stored.startedAt + clockShift : null,
               lobbyEndsAt: null,
               arenaName: control.arenaName,
+              auditEvents: Array.isArray(stored.auditEvents) ? stored.auditEvents as AuditEvent[] : [],
             });
             else callbacks.current.onCommand('off', { serverState: true, arenaName: control.arenaName });
           } else {
@@ -276,6 +279,7 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
           startedAt: typeof stored.startedAt === 'number' ? stored.startedAt + shift : null,
           lobbyEndsAt: null,
           arenaName: control.arenaName,
+          auditEvents: Array.isArray(stored.auditEvents) ? stored.auditEvents as AuditEvent[] : [],
         });
         await channelRef.current?.send({
           type: 'broadcast',
@@ -333,6 +337,7 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
             startedAt: typeof stored.startedAt === 'number' ? stored.startedAt + shift : null,
             lobbyEndsAt: null,
             arenaName: control.arenaName,
+            auditEvents: Array.isArray(stored.auditEvents) ? stored.auditEvents as AuditEvent[] : [],
           });
           return 'ok';
         }
@@ -351,5 +356,18 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
     return fallback.success ? 'ok' : 'error';
   }, []);
 
-  return { userId, isHost, connection, onlinePlayers, sendCommand, startPublicGame, sendInput, sendVote, requestSnapshot, publishSnapshot };
+  const fetchHistory = useCallback(async (password: string, page: number): Promise<HistoryResult> => {
+    const result = await callRansenControl('POST', { command: 'history', password, roomId, page }, roomId);
+    return {
+      ok: result.ok,
+      message: result.message,
+      page: Number(result.page) || page,
+      pageSize: Number(result.pageSize) || 10,
+      total: Number(result.total) || 0,
+      totalPages: Number(result.totalPages) || 0,
+      matches: Array.isArray(result.matches) ? result.matches as MatchHistory[] : [],
+    };
+  }, [roomId]);
+
+  return { userId, isHost, connection, onlinePlayers, sendCommand, fetchHistory, startPublicGame, sendInput, sendVote, requestSnapshot, publishSnapshot };
 }

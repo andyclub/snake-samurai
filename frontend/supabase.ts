@@ -17,7 +17,7 @@ export const callRansenControl = async (method: 'GET' | 'POST', body?: Record<st
       body: body ? JSON.stringify(body) : undefined,
     });
     const data = await response.json().catch(() => ({ ok: false, message: '遥控服务响应异常' }));
-    return { ...data, status: response.status } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any> };
+    return { ...data, status: response.status } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
   } catch (error) {
     console.error('Ransen control request failed', error);
     return { ok: false, status: 0, message: '云端连接失败，请重试' };

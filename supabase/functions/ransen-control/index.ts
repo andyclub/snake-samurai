@@ -20,7 +20,16 @@ const sanitizeSnapshot = (snapshot: Record<string, unknown>) => {
   const encounters = Array.isArray(snapshot.encounters)
     ? snapshot.encounters.filter((encounter: any) => !encounter?.resolved && liveIds.has(encounter?.slime1Id) && liveIds.has(encounter?.slime2Id))
     : [];
-  return { ...snapshot, slimes, encounters };
+  const allowedEventTypes = new Set(["match_started", "battle_started", "battle_resolved", "match_ended"]);
+  const auditEvents = Array.isArray(snapshot.auditEvents)
+    ? snapshot.auditEvents.slice(-200).filter((event: any) =>
+      event && typeof event.id === "string" && event.id.length <= 100
+      && allowedEventTypes.has(event.type) && typeof event.at === "number" && Number.isFinite(event.at)
+      && (!event.details || (typeof event.details === "object" && JSON.stringify(event.details).length <= 3000))
+    )
+    : [];
+  const endReason = snapshot.endReason === "last_slime" ? "last_slime" : snapshot.endReason === "timeout" ? "timeout" : undefined;
+  return { ...snapshot, slimes, encounters, auditEvents, endReason };
 };
 
 Deno.serve(async (req) => {
@@ -181,6 +190,46 @@ Deno.serve(async (req) => {
     if (claimError) return new Response(JSON.stringify({ ok: false, message: claimError.message }), { status: 500, headers });
     if (!claimed) return new Response(JSON.stringify({ ok: false, code: "CLAIM_LOST", message: "其他设备已创建战局" }), { status: 409, headers });
     return new Response(JSON.stringify({ ok: true, phase: "PLAYING", claimed: true, arenaName: room.arena_name, startedAt: serverStartedAt, snapshot: sanitizedSnapshot, serverNow: new Date().toISOString() }), { headers });
+  }
+
+  if (command === "history") {
+    const pageSize = 10;
+    const requestedPage = Number(body.page);
+    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1;
+    const from = (page - 1) * pageSize;
+    const { data, error, count } = await admin
+      .from("ransen_match_history")
+      .select("match_number,status,termination_reason,started_at,ended_at,last_snapshot_at,duration_seconds,human_count,bot_count,participants,winners,losers,provisional_leaders,surviving_participants,events", { count: "exact" })
+      .eq("room_id", roomId)
+      .order("match_number", { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) return new Response(JSON.stringify({ ok: false, message: error.message }), { status: 500, headers });
+    const total = count || 0;
+    const matches = (data || []).map((match: any) => ({
+      matchNumber: match.match_number,
+      status: match.status,
+      terminationReason: match.termination_reason,
+      startedAt: match.started_at,
+      endedAt: match.ended_at,
+      lastSnapshotAt: match.last_snapshot_at,
+      durationSeconds: match.duration_seconds,
+      humanCount: match.human_count,
+      botCount: match.bot_count,
+      participants: match.participants || [],
+      winners: match.winners || [],
+      losers: match.losers || [],
+      provisionalLeaders: match.provisional_leaders || [],
+      survivingParticipants: match.surviving_participants || [],
+      events: match.events || [],
+    }));
+    return new Response(JSON.stringify({
+      ok: true,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      matches,
+    }), { headers });
   }
 
   const phases: Record<string, string> = { on: "LOBBY", restart: "LOBBY", off: "OFF" };

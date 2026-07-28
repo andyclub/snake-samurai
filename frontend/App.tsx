@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GamePhase, Language, Player, Slime, Encounter } from './types';
-import { translations, getBrowserLanguage } from './i18n';
+import { AuditEvent, GamePhase, Language, Player, Slime, Encounter } from './types';
+import { translations, getBrowserLanguage, saveLanguagePreference } from './i18n';
 import { Globe, Terminal, HelpCircle, X, UserPlus } from 'lucide-react';
 import GameOffScreen from './components/GameOffScreen';
 import LobbyScreen from './components/LobbyScreen';
@@ -67,8 +67,15 @@ const App: React.FC = () => {
   const [arenaName, setArenaName] = useState('海老');
 
   const langMenuRef = useRef<HTMLDivElement>(null);
-  const persistentSnapshotRef = useRef({ slimes, encounters, startedAt: gameStartedAt });
-  persistentSnapshotRef.current = { slimes, encounters, startedAt: gameStartedAt };
+  const auditEventsRef = useRef<AuditEvent[]>([]);
+  const seenAuditEventsRef = useRef(new Set<string>());
+  const appendAuditEvent = useCallback((event: AuditEvent) => {
+    if (seenAuditEventsRef.current.has(event.id)) return;
+    seenAuditEventsRef.current.add(event.id);
+    auditEventsRef.current = [...auditEventsRef.current.slice(-199), event];
+  }, []);
+  const persistentSnapshotRef = useRef({ slimes, encounters, startedAt: gameStartedAt, auditEvents: auditEventsRef.current });
+  persistentSnapshotRef.current = { slimes, encounters, startedAt: gameStartedAt, auditEvents: auditEventsRef.current };
 
   const t = useCallback((key: string) => translations[lang][key] || key, [lang]);
 
@@ -181,6 +188,10 @@ const App: React.FC = () => {
       setPhase(snapshot.phase);
       updateSlimes(snapshot.slimes || []);
       updateEncounters(snapshot.encounters || []);
+      if (Array.isArray(snapshot.auditEvents)) {
+        auditEventsRef.current = snapshot.auditEvents.slice(-200);
+        seenAuditEventsRef.current = new Set(auditEventsRef.current.map(event => event.id));
+      }
       setGameStartedAt(snapshot.startedAt || null);
       setLobbyEndsAt(previous => snapshot.phase === GamePhase.LOBBY ? (snapshot.lobbyEndsAt ?? previous) : null);
       if (snapshot.arenaName) setArenaName(snapshot.arenaName);
@@ -203,6 +214,37 @@ const App: React.FC = () => {
       setPlayer(prev => prev.isSpectator ? prev : ({ ...prev, isSpectator: true }));
     }
   }, [canonicalPlayerId, phase, slimes]);
+
+  useEffect(() => {
+    if (!multiplayer.isHost || phase !== GamePhase.PLAYING || !gameStartedAt) return;
+    encounters.forEach(encounter => {
+      appendAuditEvent({
+        id: `battle-started:${encounter.id}`,
+        type: 'battle_started',
+        at: encounter.startTime,
+        details: {
+          encounterId: encounter.id,
+          slime1Id: encounter.slime1Id,
+          slime2Id: encounter.slime2Id,
+          team1: (encounter.participants1 || []).map(member => member.name),
+          team2: (encounter.participants2 || []).map(member => member.name),
+        },
+      });
+      if (encounter.resolved && encounter.result) {
+        appendAuditEvent({
+          id: `battle-resolved:${encounter.id}`,
+          type: 'battle_resolved',
+          at: encounter.result.resolvedAt || Date.now(),
+          details: {
+            encounterId: encounter.id,
+            winner: encounter.result.winnerName,
+            loser: encounter.result.loserName,
+            outcome: encounter.result.outcome,
+          },
+        });
+      }
+    });
+  }, [appendAuditEvent, encounters, gameStartedAt, multiplayer.isHost, phase]);
 
   useEffect(() => {
     localStorage.setItem('kazeabc_spectator', String(Boolean(player.isSpectator)));
@@ -233,8 +275,16 @@ const App: React.FC = () => {
       startedAt: gameStartedAt,
       lobbyEndsAt: null,
       arenaName,
+      auditEvents: auditEventsRef.current,
     };
-    multiplayer.publishSnapshot(snapshot);
+    multiplayer.publishSnapshot({
+      phase,
+      slimes: snapshot.slimes,
+      encounters: snapshot.encounters,
+      startedAt: snapshot.startedAt,
+      lobbyEndsAt: snapshot.lobbyEndsAt,
+      arenaName: snapshot.arenaName,
+    });
     if (snapshot.slimes.length > 0) persistRansenSnapshot(snapshot, ARENA_ID).catch(error => console.error('Failed to persist encounter transition', error));
   }, [arenaName, encounters, gameStartedAt, multiplayer.isHost, multiplayer.publishSnapshot, phase]);
 
@@ -245,6 +295,7 @@ const App: React.FC = () => {
         ...persistentSnapshotRef.current,
         slimes: authoritativeSlimesRef.current,
         encounters: authoritativeEncountersRef.current,
+        auditEvents: auditEventsRef.current,
       };
       if (snapshot.slimes.length > 0) persistRansenSnapshot(snapshot, ARENA_ID).catch(error => console.error('Failed to persist game snapshot', error));
     };
@@ -368,6 +419,9 @@ const App: React.FC = () => {
     }
     const startedAt = Date.now();
     const claimedSlimes = Array.isArray(claim.snapshot?.slimes) ? claim.snapshot.slimes as Slime[] : initialSlimes;
+    const startEvent: AuditEvent = { id: `match-started:${startedAt}`, type: 'match_started', at: startedAt };
+    auditEventsRef.current = [startEvent];
+    seenAuditEventsRef.current = new Set([startEvent.id]);
     const snapshot = { ...proposedSnapshot, slimes: claimedSlimes, startedAt };
     updateSlimes(claimedSlimes);
     setGameStartedAt(startedAt);
@@ -378,11 +432,21 @@ const App: React.FC = () => {
     return true;
   };
 
-  const handleGameOver = useCallback(() => {
+  const handleGameOver = useCallback((endReason: 'timeout' | 'last_slime') => {
+    appendAuditEvent({
+      id: `match-ended:${gameStartedAt || 'unknown'}`,
+      type: 'match_ended',
+      at: Date.now(),
+      details: { reason: endReason },
+    });
     setPhase(GamePhase.THEATER);
-    const snapshot = persistentSnapshotRef.current;
-    persistRansenSnapshot({ ...snapshot, phase: GamePhase.THEATER }, ARENA_ID).catch(error => console.error('Failed to persist game over', error));
-  }, []);
+    const snapshot = {
+      ...persistentSnapshotRef.current,
+      slimes: authoritativeSlimesRef.current,
+      encounters: authoritativeEncountersRef.current,
+    };
+    persistRansenSnapshot({ ...snapshot, auditEvents: auditEventsRef.current, endReason, phase: GamePhase.THEATER }, ARENA_ID).catch(error => console.error('Failed to persist game over', error));
+  }, [appendAuditEvent, gameStartedAt]);
 
   const handleJoinNextRound = useCallback(async () => {
     // Clicking "join" is an explicit opt-in. Clear a previously persisted
@@ -417,6 +481,7 @@ const App: React.FC = () => {
   if (window.location.pathname.replace(/\/$/, '') === '/r') return (
     <RemoteControl
       onCommand={multiplayer.sendCommand}
+      fetchHistory={multiplayer.fetchHistory}
       connection={multiplayer.connection}
       phase={phase}
       playerCount={currentGamePlayerCount}
@@ -543,7 +608,7 @@ const App: React.FC = () => {
         <span className={`w-2.5 h-2.5 rounded-full ${multiplayer.connection === 'online' ? 'bg-emerald-400 shadow-[0_0_8px_#34d399]' : multiplayer.connection === 'error' ? 'bg-red-500' : 'bg-amber-400 animate-pulse'}`} title={`Realtime: ${multiplayer.connection}`} />
         <div className="flex flex-col items-end text-xs text-slate-500/80 font-mono select-none pointer-events-none">
           <span>v{__REPO_COMMIT_COUNT__}</span>
-          <span>2026-07-15</span>
+          <span>{__BUILD_DATE__}</span>
         </div>
         
         <button 
@@ -582,6 +647,7 @@ const App: React.FC = () => {
                   key={l.code}
                   onClick={() => {
                     audio.playPop();
+                    saveLanguagePreference(l.code);
                     setLang(l.code);
                     setShowLangMenu(false);
                   }}

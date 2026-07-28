@@ -51,18 +51,33 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, slimes, onVote }) 
   };
 
   const q = encounter.question;
-  const teams = [
-    { members: encounter.participants1 || slimes.find(s=>s.id===encounter.slime1Id)?.members || [], votes: encounter.votes1, side: 'A', panelClass: 'bg-blue-500/10 border-blue-400/30' },
-    { members: encounter.participants2 || slimes.find(s=>s.id===encounter.slime2Id)?.members || [], votes: encounter.votes2, side: 'B', panelClass: 'bg-rose-500/10 border-rose-400/30' },
-  ];
+  const questionType = t(`question.type.${q.type}`);
+  const questionLevel = q.level === '防災'
+    ? t('question.level.disaster')
+    : q.level === '富山'
+      ? t('question.level.toyama')
+      : q.level;
+  const side1Members = encounter.participants1 || slimes.find(slime => slime.id === encounter.slime1Id)?.members || [];
+  const side2Members = encounter.participants2 || slimes.find(slime => slime.id === encounter.slime2Id)?.members || [];
+  const playerIsSide1 = side1Members.some(member => member.id === player.id);
+  // Every client sees its controlled slime first. Internally this is the
+  // local A-side, but the UI deliberately uses slime names instead of A/B.
+  const teams = playerIsSide1
+    ? [
+        { slimeId: encounter.slime1Id, name: side1Members[0]?.name || 'Slime', members: side1Members, votes: encounter.votes1, panelClass: 'bg-blue-500/10 border-blue-400/30' },
+        { slimeId: encounter.slime2Id, name: side2Members[0]?.name || 'Slime', members: side2Members, votes: encounter.votes2, panelClass: 'bg-rose-500/10 border-rose-400/30' },
+      ]
+    : [
+        { slimeId: encounter.slime2Id, name: side2Members[0]?.name || 'Slime', members: side2Members, votes: encounter.votes2, panelClass: 'bg-blue-500/10 border-blue-400/30' },
+        { slimeId: encounter.slime1Id, name: side1Members[0]?.name || 'Slime', members: side1Members, votes: encounter.votes1, panelClass: 'bg-rose-500/10 border-rose-400/30' },
+      ];
+  const playerSlimeId = teams[0].slimeId;
   const winnerSlime = encounter.result ? slimes.find(slime => slime.id === encounter.result?.winnerSlimeId) : undefined;
   const loserFragments = encounter.result ? slimes.filter(slime =>
     slime.id === encounter.result?.loserSlimeId || slime.id.startsWith(`${encounter.result?.loserSlimeId}-split-`)
   ) : [];
   const loserSlime = loserFragments[0];
-  const playerWon = encounter.result?.winnerSlimeId === encounter.slime1Id
-    ? Boolean(encounter.participants1?.some(member => member.id === player.id))
-    : Boolean(encounter.participants2?.some(member => member.id === player.id));
+  const playerWon = encounter.result?.winnerSlimeId === playerSlimeId;
   const resultTone = encounter.resolved ? (playerWon ? 'bg-red-950 border-red-400 shadow-[0_0_45px_rgba(239,68,68,.55)]' : 'bg-blue-950 border-blue-400 shadow-[0_0_45px_rgba(59,130,246,.55)]') : 'bg-slate-800 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)]';
   const finalExplanation = encounter.resolved && resultElapsed >= 2500;
   const majorityChoice = (votes: Record<string, number>) => {
@@ -71,6 +86,17 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, slimes, onVote }) 
     const max = Math.max(...counts);
     return max === 0 ? -1 : counts.indexOf(max);
   };
+  const playerVote = teams[0].votes[player.id];
+  const playerAnsweredCorrectly = playerVote === q.correctIndex;
+  const ownMajority = majorityChoice(teams[0].votes);
+  const opponentMajority = majorityChoice(teams[1].votes);
+  const personalDefeatReason = !playerWon && playerAnsweredCorrectly
+    ? ownMajority !== q.correctIndex
+      ? t('battle.reason.teamVote')
+      : opponentMajority === q.correctIndex && (encounter.result?.leadMs || 0) > 0
+        ? t('battle.reason.speed')
+        : t('battle.reason.tiebreak')
+    : undefined;
 
   if (finalExplanation && encounter.result) return (
     <div className={`fixed inset-0 z-[115] flex flex-col items-center justify-center px-3 py-5 ${playerWon ? 'bg-red-950' : 'bg-blue-950'} battle-answer-explanation`}>
@@ -80,14 +106,27 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, slimes, onVote }) 
         <div className={`mt-2 text-4xl sm:text-6xl font-black ${playerWon ? 'text-red-200' : 'text-blue-200'}`}>{playerWon ? t('battle.youWin') : t('battle.youLose')}</div>
         <div className="mt-3 inline-flex rounded-full border border-emerald-200 bg-emerald-500/20 px-5 py-2 text-lg sm:text-2xl font-black text-emerald-100">✓ {['A','B','C','D'][q.correctIndex]}. {q.options[q.correctIndex]}</div>
         {encounter.result.leadMs !== undefined && <div className="mt-2 text-base sm:text-xl font-black text-cyan-100">⏱ {encounter.result.winnerName} {t('battle.lead')} {encounter.result.leadMs} ms</div>}
+        {personalDefeatReason && (
+          <div className="mx-auto mt-4 max-w-3xl rounded-2xl border-2 border-amber-200/70 bg-amber-300/15 px-4 py-3 text-left text-amber-50 shadow-[0_0_28px_rgba(251,191,36,.18)]">
+            <div className="font-black">💡 {t('battle.reason.title')}</div>
+            <p className="mt-1 text-sm font-bold leading-6 sm:text-lg">{personalDefeatReason}</p>
+            {ownMajority !== q.correctIndex && (
+              <p className="mt-1 text-xs text-amber-100/75 sm:text-sm">
+                {t('battle.teamAnswer')}: {ownMajority < 0 ? t('trivia.noVote') : ['A','B','C','D'][ownMajority]} · {t('battle.correct')}: {['A','B','C','D'][q.correctIndex]}
+              </p>
+            )}
+            {ownMajority === q.correctIndex && opponentMajority === q.correctIndex && encounter.result.leadMs !== undefined && (
+              <p className="mt-1 text-xs text-amber-100/75 sm:text-sm">⏱ {encounter.result.leadMs} ms</p>
+            )}
+          </div>
+        )}
         <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-6 text-left">
           {teams.map(team => {
-            const teamSlimeId = team.side === 'A' ? encounter.slime1Id : encounter.slime2Id;
-            const won = encounter.result!.winnerSlimeId === teamSlimeId;
+            const won = encounter.result!.winnerSlimeId === team.slimeId;
             const majority = majorityChoice(team.votes);
-            return <section key={team.side} className={`rounded-2xl sm:rounded-3xl border-4 p-3 sm:p-5 ${won ? 'border-red-300 bg-red-600/25' : 'border-blue-300 bg-blue-600/25'}`}>
+            return <section key={team.slimeId} className={`rounded-2xl sm:rounded-3xl border-4 p-3 sm:p-5 ${won ? 'border-red-300 bg-red-600/25' : 'border-blue-300 bg-blue-600/25'}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-white/20 pb-2 sm:pb-3">
-                <b className="text-xl sm:text-3xl text-white">{t('trivia.team')} {team.side}</b>
+                <b className="truncate text-xl text-white sm:text-3xl">{team.name}</b>
                 <span className={`text-sm sm:text-xl font-black ${won ? 'text-red-200' : 'text-blue-200'}`}>{won ? `🏆 ${t('battle.wins')}` : `✕ ${t('battle.youLose')}`}</span>
               </div>
               <div className="mt-2 sm:mt-3 space-y-2">
@@ -127,11 +166,11 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, slimes, onVote }) 
         <div className="mb-8">
           <div className="flex items-center gap-2 mb-2">
             <span className="bg-blue-600 text-xs px-2 py-1 rounded uppercase font-bold tracking-wider">
-              {q.type}
+              {questionType}
             </span>
             {q.level && (
               <span className="bg-purple-600 text-xs px-2 py-1 rounded font-bold">
-                {q.level}
+                {questionLevel}
               </span>
             )}
           </div>
@@ -143,8 +182,8 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, slimes, onVote }) 
               type="button"
               onClick={() => audio.speakQuestion(q.text)}
               className="shrink-0 w-12 h-12 rounded-full bg-cyan-500/20 border border-cyan-300/50 text-2xl hover:bg-cyan-400/30 active:scale-90 transition-all"
-              title="Local TTS"
-              aria-label="Local TTS"
+              title={t('trivia.readQuestion')}
+              aria-label={t('trivia.readQuestion')}
             >🔊</button>
           </div>
           {encounter.resolved && encounter.result && winnerSlime && loserSlime && (
@@ -200,7 +239,7 @@ const TriviaModal: React.FC<Props> = ({ t, encounter, player, slimes, onVote }) 
         {encounter.resolved && encounter.result && <div className={`mt-6 rounded-2xl border-2 p-5 text-center ${playerWon ? 'border-red-300 bg-red-500/20' : 'border-blue-300 bg-blue-500/20'}`}><p className="text-sm text-white font-black tracking-widest">{t('battle.correct')}</p><p className="text-2xl text-white font-black mt-2">{['A','B','C','D'][q.correctIndex]}. {q.options[q.correctIndex]}</p><p className="mt-3 text-2xl text-white font-black">{playerWon ? t('battle.youWin') : t('battle.youLose')}</p>{encounter.result.leadMs !== undefined && <p className="mt-2 text-cyan-100 font-black">⏱ {t('battle.lead')} {encounter.result.leadMs} ms</p>}</div>}
 
         <div className="grid grid-cols-2 gap-3 mt-6">
-          {teams.map(team => <div key={team.side} className={`rounded-xl border p-3 ${team.panelClass}`}><div className="font-black mb-2">{t('trivia.team')} {team.side}</div><div className="space-y-1.5">{team.members.map(member => {
+          {teams.map(team => <div key={team.slimeId} className={`rounded-xl border p-3 ${team.panelClass}`}><div className="mb-2 truncate font-black">{team.name}</div><div className="space-y-1.5">{team.members.map(member => {
             const vote = team.votes[member.id];
             const isCorrect = vote === encounter.question.correctIndex;
             const status = !encounter.resolved

@@ -72,4 +72,37 @@ export interface Encounter {
   };
 }
 
+export type ParticipantType = 'human' | 'bot';
+
+export interface HistoryParticipant {
+  id: string;
+  name: string;
+  participantType: ParticipantType;
+}
+
+export interface AuditEvent {
+  id: string;
+  type: 'match_started' | 'battle_started' | 'battle_resolved' | 'match_ended';
+  at: number;
+  details?: Record<string, string | number | boolean | string[]>;
+}
+
+export interface MatchHistory {
+  matchNumber: number;
+  status: 'completed' | 'interrupted';
+  terminationReason: 'timeout' | 'last_slime' | 'manual_off' | 'manual_restart';
+  startedAt: string;
+  endedAt: string;
+  lastSnapshotAt: string;
+  durationSeconds: number;
+  humanCount: number;
+  botCount: number;
+  participants: HistoryParticipant[];
+  winners: HistoryParticipant[];
+  losers: HistoryParticipant[];
+  provisionalLeaders: HistoryParticipant[];
+  survivingParticipants: HistoryParticipant[];
+  events: AuditEvent[];
+}
+
 export type Language = 'zh-CN' | 'ja' | 'en' | 'zh-TW' | 'ko' | 'fr' | 'nl';

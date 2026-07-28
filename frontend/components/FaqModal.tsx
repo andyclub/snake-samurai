@@ -26,18 +26,73 @@ const smoothBoundary: Record<Language, string> = {
   'nl': 'Tijdens de wedstrijd van vijf minuten krimpt de veilige zone vloeiend van 100% naar 20%. De rand duwt slimes terug met een waarschuwing.',
 };
 
+const battleAnimationCopy: Record<Language, { title: string; devour: string; devourHint: string; split: string; splitHint: string; winner: string; solo: string; team: string }> = {
+  'zh-CN': { title: '战斗结果动画', devour: '单人败方被吞噬', devourHint: '败方只有 1 人时，胜方将其吞噬并变大。', split: '多人败方会分裂', splitHint: '败方有多人时，会分裂成两只较小的史莱姆。', winner: '胜方', solo: '单人败方', team: '多人败方' },
+  'zh-TW': { title: '戰鬥結果動畫', devour: '單人敗方被吞噬', devourHint: '敗方只有 1 人時，勝方會將其吞噬並變大。', split: '多人敗方會分裂', splitHint: '敗方有多人時，會分裂成兩隻較小的史萊姆。', winner: '勝方', solo: '單人敗方', team: '多人敗方' },
+  'ja': { title: 'バトル結果アニメーション', devour: '1人の敗者は吸収', devourHint: '敗者が1人なら、勝者に吸収されて勝者が大きくなります。', split: '複数人の敗者は分裂', splitHint: '敗者が複数人なら、2体の小さなスライムに分裂します。', winner: '勝者', solo: '1人の敗者', team: '複数人の敗者' },
+  'en': { title: 'Battle result animation', devour: 'A solo loser is devoured', devourHint: 'When the losing slime has one member, the winner devours it and grows.', split: 'A team loser splits', splitHint: 'When the losing slime has several members, it splits into two smaller slimes.', winner: 'Winner', solo: 'Solo loser', team: 'Team loser' },
+  'ko': { title: '전투 결과 애니메이션', devour: '1인 패자는 흡수', devourHint: '패자가 한 명이면 승자가 흡수하고 더 커집니다.', split: '여러 명의 패자는 분열', splitHint: '패자가 여러 명이면 더 작은 슬라임 두 개로 분열합니다.', winner: '승자', solo: '1인 패자', team: '팀 패자' },
+  'fr': { title: 'Animation du résultat', devour: 'Un perdant seul est absorbé', devourHint: 'Si le slime perdant n’a qu’un membre, le vainqueur l’absorbe et grandit.', split: 'Une équipe perdante se divise', splitHint: 'Avec plusieurs membres, le perdant se divise en deux slimes plus petits.', winner: 'Vainqueur', solo: 'Perdant seul', team: 'Équipe perdante' },
+  'nl': { title: 'Animatie van het resultaat', devour: 'Een solo-verliezer wordt opgeslokt', devourHint: 'Heeft de verliezer één lid, dan slokt de winnaar hem op en groeit.', split: 'Een team-verliezer splitst', splitHint: 'Met meerdere leden splitst de verliezer in twee kleinere slimes.', winner: 'Winnaar', solo: 'Solo-verliezer', team: 'Team-verliezer' },
+};
+
 const FaqModal: React.FC<{onClose:()=>void; lang: Language}> = ({onClose, lang}) => {
   const text = { ...copy[lang], boundary: smoothBoundary[lang] };
+  const animationText = battleAnimationCopy[lang];
   return <div className="fixed inset-0 z-[120] bg-[#050816]/95 backdrop-blur-xl overflow-y-auto p-4 sm:p-8">
     <div className="max-w-4xl mx-auto">
       <button onClick={onClose} aria-label={text.close} title={text.close} className="fixed right-4 z-10 p-4 bg-white/15 border border-white/20 rounded-full shadow-xl active:scale-90" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' }}><X/></button>
       <div className="text-center mb-8"><SlimeAvatar className="w-36 h-36 mx-auto"/><p className="text-cyan-300 font-black tracking-[.3em] text-xs">{text.eyebrow}</p><h2 className="text-4xl font-black mt-2">{text.title}</h2><p className="text-slate-400 mt-3">{text.intro}</p></div>
       <div className="grid md:grid-cols-2 gap-4">{text.cards.map(([title,body], i) => { const Icon=icons[i]; const color=colors[i]; return <article key={title} className="rounded-3xl border border-white/10 bg-white/[.05] p-6 relative overflow-hidden"><span className="absolute right-4 top-2 text-7xl font-black text-white/[.04]">0{i+1}</span><div className="flex gap-4"><div className="p-3 h-fit rounded-2xl" style={{background:`${color}22`,color}}><Icon/></div><div><h3 className="text-xl font-black mb-2">{title}</h3><p className="text-slate-300 leading-7">{body}</p></div></div></article>})}</div>
+      <section className="mt-6 rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/[.06] p-5 sm:p-6">
+        <h3 className="mb-4 text-xl font-black text-fuchsia-100">{animationText.title}</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <article className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <h4 className="font-black text-amber-200">{animationText.devour}</h4>
+            <p className="mt-1 min-h-10 text-sm text-slate-400">{animationText.devourHint}</p>
+            <div className="faq-battle-stage mt-3" aria-label={animationText.devour}>
+              <div className="faq-devour-winner"><SlimeAvatar color="#22d3ee" className="h-20 w-20"/><span>{animationText.winner}</span></div>
+              <div className="faq-devour-loser"><SlimeAvatar color="#fb7185" className="h-14 w-14"/><span>{animationText.solo}</span></div>
+              <div className="faq-devour-vortex">🌀</div>
+            </div>
+          </article>
+          <article className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+            <h4 className="font-black text-amber-200">{animationText.split}</h4>
+            <p className="mt-1 min-h-10 text-sm text-slate-400">{animationText.splitHint}</p>
+            <div className="faq-battle-stage mt-3" aria-label={animationText.split}>
+              <div className="faq-split-source"><SlimeAvatar colors={['#a78bfa','#f472b6','#fbbf24']} className="h-20 w-20"/><span>{animationText.team}</span></div>
+              <div className="faq-split-piece faq-split-left"><SlimeAvatar color="#a78bfa" className="h-12 w-12"/></div>
+              <div className="faq-split-piece faq-split-right"><SlimeAvatar colors={['#f472b6','#fbbf24']} className="h-12 w-12"/></div>
+              <div className="faq-split-impact">💥</div>
+            </div>
+          </article>
+        </div>
+      </section>
       <div className="mt-6 rounded-3xl bg-amber-400/10 border border-amber-300/20 p-5 text-amber-100"><b>{text.boundaryTitle}</b> {text.boundary}</div>
       <div className="flex justify-center border-t border-white/10 py-8 mt-8">
         <HomeLink />
       </div>
     </div>
+    <style>{`
+      .faq-battle-stage{position:relative;height:10rem;overflow:hidden;border-radius:1rem;background:radial-gradient(circle at center,rgba(168,85,247,.16),rgba(2,6,23,.72))}
+      .faq-battle-stage span{display:block;margin-top:-.4rem;text-align:center;font-size:.68rem;font-weight:800;color:#cbd5e1;white-space:nowrap}
+      .faq-devour-winner,.faq-devour-loser,.faq-split-source,.faq-split-piece{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+      .faq-devour-winner{margin-left:-4.2rem;animation:faq-winner-grow 4s ease-in-out infinite}
+      .faq-devour-loser{margin-left:4.4rem;animation:faq-loser-devoured 4s ease-in-out infinite}
+      .faq-devour-vortex{position:absolute;left:50%;top:48%;font-size:2.2rem;animation:faq-vortex 4s ease-in-out infinite}
+      .faq-split-source{animation:faq-split-source 4s ease-in-out infinite}
+      .faq-split-piece{opacity:0;animation-duration:4s;animation-timing-function:ease-out;animation-iteration-count:infinite}
+      .faq-split-left{animation-name:faq-split-left}.faq-split-right{animation-name:faq-split-right}
+      .faq-split-impact{position:absolute;left:50%;top:46%;font-size:2rem;animation:faq-impact 4s ease-out infinite}
+      @keyframes faq-winner-grow{0%,30%,100%{transform:translate(-50%,-50%) scale(1)}60%,82%{transform:translate(5%,-50%) scale(1.28)}}
+      @keyframes faq-loser-devoured{0%,28%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}62%,82%{transform:translate(-220%,-50%) scale(.05) rotate(540deg);opacity:0}}
+      @keyframes faq-vortex{0%,25%,85%,100%{transform:translate(-50%,-50%) scale(.1);opacity:0}42%,68%{transform:translate(-50%,-50%) scale(1) rotate(360deg);opacity:1}}
+      @keyframes faq-split-source{0%,35%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}53%,82%{transform:translate(-50%,-50%) scale(1.35);opacity:0}}
+      @keyframes faq-split-left{0%,42%,100%{transform:translate(-50%,-50%) scale(.2);opacity:0}58%,82%{transform:translate(-165%,-50%) scale(1);opacity:1}}
+      @keyframes faq-split-right{0%,42%,100%{transform:translate(-50%,-50%) scale(.2);opacity:0}58%,82%{transform:translate(65%,-50%) scale(1);opacity:1}}
+      @keyframes faq-impact{0%,38%,78%,100%{transform:translate(-50%,-50%) scale(.1);opacity:0}48%{transform:translate(-50%,-50%) scale(1.35);opacity:1}}
+      @media (prefers-reduced-motion:reduce){.faq-devour-winner,.faq-devour-loser,.faq-devour-vortex,.faq-split-source,.faq-split-piece,.faq-split-impact{animation:none!important}.faq-devour-loser{opacity:.35}.faq-devour-winner{transform:translate(5%,-50%) scale(1.2)}.faq-split-source{display:none}.faq-split-piece{opacity:1}.faq-split-left{transform:translate(-165%,-50%)}.faq-split-right{transform:translate(65%,-50%)}.faq-split-impact{opacity:1;transform:translate(-50%,-50%)}}
+    `}</style>
   </div>;
 };
 export default FaqModal;

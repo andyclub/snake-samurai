@@ -16,7 +16,7 @@ interface Props {
   encounters: Encounter[];
   setEncounters: React.Dispatch<React.SetStateAction<Encounter[]>>;
   encountersRef: React.MutableRefObject<Encounter[]>;
-  onGameOver: () => void;
+  onGameOver: (reason: 'timeout' | 'last_slime') => void;
   isHost: boolean;
   onMove: (x: number, y: number) => void;
   onVote: (encounterId: string, option: number) => void;
@@ -44,7 +44,10 @@ const MAP_WIDTH = 2000;
 const MAP_HEIGHT = 2000;
 const TICK_RATE = 50; // ms per tick
 const BASE_SPEED = 5;
+const BASE_SLIME_SIZE = 30;
 const MIN_ZONE_SIZE = .2;
+const mapScaleForSlime = (size: number) =>
+  Math.max(.1, Math.min(2, BASE_SLIME_SIZE / Math.max(1, size)));
 
 const zoneSizeAt = (elapsedSeconds: number) =>
   Math.max(MIN_ZONE_SIZE, 1 - (Math.min(300, Math.max(0, elapsedSeconds)) / 300) * (1 - MIN_ZONE_SIZE));
@@ -124,7 +127,7 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
       setZoneSize(zoneSizeAt(elapsed));
       if (Date.now() >= deadline && !endedRef.current) {
         endedRef.current = true;
-        onGameOver();
+        onGameOver('timeout');
       }
     };
     const timer = setInterval(tick, 200);
@@ -281,7 +284,7 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
     // 3. Check Win Condition
     const aliveSlimes = currentSlimes.filter(s => !s.isDead);
     if (aliveSlimes.length <= 1 && currentSlimes.length > 1 && encountersRef.current.length === 0) {
-      onGameOver();
+      onGameOver('last_slime');
     }
 
     setSlimes(currentSlimes);
@@ -505,8 +508,8 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
 
     const rect = containerRef.current.getBoundingClientRect();
     // Calculate click position relative to the map, accounting for camera offset
-    const clickX = clientX - rect.left + cameraPos.x;
-    const clickY = clientY - rect.top + cameraPos.y;
+    const clickX = (clientX - rect.left) / playerMapScale + cameraPos.x;
+    const clickY = (clientY - rect.top) / playerMapScale + cameraPos.y;
 
     // Add ripple effect
     const newRipple = { id: Date.now(), x: clickX, y: clickY };
@@ -545,12 +548,13 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
     if (isSpectator) return;
     const mySlime = slimes.find(s => s.members.some(m => m.id === player.id) && !s.isDead);
     if (!mySlime || viewport.width <= 0 || viewport.height <= 0) return;
+    const scale = mapScaleForSlime(mySlime.size);
     // Keep the controlled slime exactly at the visual center. Smooth camera
     // interpolation created a permanent offset while a slime was moving,
     // which was especially disruptive on narrow phone screens.
     setCameraPos({
-      x: mySlime.x - viewport.width / 2,
-      y: mySlime.y - viewport.height / 2,
+      x: mySlime.x - viewport.width / (2 * scale),
+      y: mySlime.y - viewport.height / (2 * scale),
     });
   }, [slimes, player.id, isSpectator, viewport.height, viewport.width]);
 
@@ -562,15 +566,23 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
     slimes.find(s => s.id === encounter.slime2Id)?.members.some(m => m.id === player.id) ||
     (encounter.resolved && encounter.result?.outcome === 'split' && slimes.some(s => s.id.startsWith(`${encounter.result!.loserSlimeId}-split-`) && s.members.some(m => m.id === player.id)));
   const playerEncounters = isSpectator ? [] : encounters.filter(encounterHasPlayer);
-  const encounterPlayerWon = (encounter: Encounter) => encounter.result?.winnerSlimeId === encounter.slime1Id
-    ? Boolean(encounter.participants1?.some(member => member.id === player.id))
-    : Boolean(encounter.participants2?.some(member => member.id === player.id));
+  const encounterPlayerSlimeId = (encounter: Encounter) => {
+    if (encounter.participants1?.some(member => member.id === player.id)) return encounter.slime1Id;
+    if (encounter.participants2?.some(member => member.id === player.id)) return encounter.slime2Id;
+    if (slimes.find(slime => slime.id === encounter.slime1Id)?.members.some(member => member.id === player.id)) return encounter.slime1Id;
+    if (slimes.find(slime => slime.id === encounter.slime2Id)?.members.some(member => member.id === player.id)) return encounter.slime2Id;
+    return undefined;
+  };
+  const encounterPlayerWon = (encounter: Encounter) =>
+    Boolean(encounter.result?.winnerSlimeId && encounter.result.winnerSlimeId === encounterPlayerSlimeId(encounter));
   const playerEncounterIds = new Set(playerEncounters.map(encounter => encounter.id));
   const otherEncounters = encounters.filter(encounter => !playerEncounterIds.has(encounter.id));
   const spectatorScale = Math.max(.18, Math.min(viewport.width / MAP_WIDTH, viewport.height / MAP_HEIGHT) * .94);
+  const controlledSlime = isSpectator ? undefined : slimes.find(slime => !slime.isDead && slime.members.some(member => member.id === player.id));
+  const playerMapScale = controlledSlime ? mapScaleForSlime(controlledSlime.size) : 1;
   const mapTransform = isSpectator
     ? `translate(${(viewport.width - MAP_WIDTH * spectatorScale) / 2}px, ${(viewport.height - MAP_HEIGHT * spectatorScale) / 2}px) scale(${spectatorScale})`
-    : `translate(${-cameraPos.x}px, ${-cameraPos.y}px)`;
+    : `translate(${-cameraPos.x * playerMapScale}px, ${-cameraPos.y * playerMapScale}px) scale(${playerMapScale})`;
   const liveSlimeCount = slimes.filter(slime => !slime.isDead && slime.members.length > 0).length;
 
   return (
@@ -586,8 +598,8 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
         className="absolute inset-0 opacity-20 pointer-events-none"
         style={{
           backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-          transform: `translate(${-cameraPos.x % 40}px, ${-cameraPos.y % 40}px)`
+          backgroundSize: `${40 * playerMapScale}px ${40 * playerMapScale}px`,
+          transform: `translate(${(-cameraPos.x * playerMapScale) % (40 * playerMapScale)}px, ${(-cameraPos.y * playerMapScale) % (40 * playerMapScale)}px)`
         }}
       />
 
@@ -599,7 +611,7 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
           height: MAP_HEIGHT,
           transform: mapTransform,
           transformOrigin: 'top left',
-          transition: isSpectator ? 'transform 0.1s linear' : 'none'
+          transition: isSpectator ? 'transform 0.1s linear' : 'transform 0.18s ease-out'
         }}
       >
         {/* Shrinking Zone */}
@@ -634,10 +646,10 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
             {effect.outcome === 'split' ? <>
               <div className="split-fragment split-left">💥</div>
               <div className="split-fragment split-right">💥</div>
-              <div className="battle-word">SPLIT!</div>
+              <div className="battle-word">{t('battle.splitFx')}</div>
             </> : <>
               <div className="devour-vortex">🌀</div>
-              <div className="battle-word">CHOMP!</div>
+              <div className="battle-word">{t('battle.devourFx')}</div>
             </>}
           </div>
         ))}
@@ -670,7 +682,7 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
               {/* Main Name Tag */}
               <div className="absolute -bottom-8 whitespace-nowrap text-white font-bold text-sm bg-black/60 px-3 py-1 rounded-full pointer-events-none border border-white/20 shadow-lg">
                 {mainMember.name}
-                {slime.members.length > 1 && <span className="ml-2 text-yellow-300">⚡ TEAM</span>}
+                {slime.members.length > 1 && <span className="ml-2 text-yellow-300">⚡ {t('trivia.team')}</span>}
               </div>
 
               {/* Waving Flags for other members */}
