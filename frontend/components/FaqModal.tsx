@@ -43,8 +43,7 @@ const FaqModal: React.FC<{onClose:()=>void; lang: Language}> = ({onClose, lang})
     <div className="max-w-4xl mx-auto">
       <button onClick={onClose} aria-label={text.close} title={text.close} className="fixed right-4 z-10 p-4 bg-white/15 border border-white/20 rounded-full shadow-xl active:scale-90" style={{ top: 'calc(env(safe-area-inset-top, 0px) + 4.5rem)' }}><X/></button>
       <div className="text-center mb-8"><SlimeAvatar className="w-36 h-36 mx-auto"/><p className="text-cyan-300 font-black tracking-[.3em] text-xs">{text.eyebrow}</p><h2 className="text-4xl font-black mt-2">{text.title}</h2><p className="text-slate-400 mt-3">{text.intro}</p></div>
-      <div className="grid md:grid-cols-2 gap-4">{text.cards.map(([title,body], i) => { const Icon=icons[i]; const color=colors[i]; return <article key={title} className="rounded-3xl border border-white/10 bg-white/[.05] p-6 relative overflow-hidden"><span className="absolute right-4 top-2 text-7xl font-black text-white/[.04]">0{i+1}</span><div className="flex gap-4"><div className="p-3 h-fit rounded-2xl" style={{background:`${color}22`,color}}><Icon/></div><div><h3 className="text-xl font-black mb-2">{title}</h3><p className="text-slate-300 leading-7">{body}</p></div></div></article>})}</div>
-      <section className="mt-6 rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/[.06] p-5 sm:p-6">
+      <section className="mb-6 rounded-3xl border border-fuchsia-300/20 bg-fuchsia-400/[.06] p-5 sm:p-6">
         <h3 className="mb-4 text-xl font-black text-fuchsia-100">{animationText.title}</h3>
         <div className="grid gap-4 md:grid-cols-2">
           <article className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
@@ -68,6 +67,7 @@ const FaqModal: React.FC<{onClose:()=>void; lang: Language}> = ({onClose, lang})
           </article>
         </div>
       </section>
+      <div className="grid md:grid-cols-2 gap-4">{text.cards.map(([title,body], i) => { const Icon=icons[i]; const color=colors[i]; return <article key={title} className="rounded-3xl border border-white/10 bg-white/[.05] p-6 relative overflow-hidden"><span className="absolute right-4 top-2 text-7xl font-black text-white/[.04]">0{i+1}</span><div className="flex gap-4"><div className="p-3 h-fit rounded-2xl" style={{background:`${color}22`,color}}><Icon/></div><div><h3 className="text-xl font-black mb-2">{title}</h3><p className="text-slate-300 leading-7">{body}</p></div></div></article>})}</div>
       <div className="mt-6 rounded-3xl bg-amber-400/10 border border-amber-300/20 p-5 text-amber-100"><b>{text.boundaryTitle}</b> {text.boundary}</div>
       <div className="flex justify-center border-t border-white/10 py-8 mt-8">
         <HomeLink />

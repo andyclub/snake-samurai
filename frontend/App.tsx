@@ -106,6 +106,10 @@ const App: React.FC = () => {
     if (phase === GamePhase.OFF || phase === GamePhase.LOBBY) audio.setBGM(phase);
   }, [phase]);
 
+  useEffect(() => {
+    if (phase === GamePhase.PLAYING && showRules) setShowRules(false);
+  }, [phase, showRules]);
+
   const executeCommand = useCallback((cmd: string, broadcast = true, payload: Record<string, any> = {}) => {
     const normalized = cmd.replace('/jec.', '');
     if (broadcast) {
@@ -526,7 +530,7 @@ const App: React.FC = () => {
       )}
 
       {/* Rules Modal */}
-      {showRules && (
+      {showRules && phase !== GamePhase.PLAYING && (
         <FaqModal onClose={() => setShowRules(false)} lang={lang} />
         /*<div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in duration-200">
