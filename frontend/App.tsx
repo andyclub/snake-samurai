@@ -68,6 +68,7 @@ const App: React.FC = () => {
   const [gameStartedAt, setGameStartedAt] = useState<number | null>(null);
   const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(null);
   const [arenaName, setArenaName] = useState('海老');
+  const previousPhaseRef = useRef<GamePhase>(phase);
 
   const langMenuRef = useRef<HTMLDivElement>(null);
   const auditEventsRef = useRef<AuditEvent[]>([]);
@@ -107,8 +108,12 @@ const App: React.FC = () => {
   }, [phase]);
 
   useEffect(() => {
-    if (phase === GamePhase.PLAYING && showRules) setShowRules(false);
-  }, [phase, showRules]);
+    const previousPhase = previousPhaseRef.current;
+    previousPhaseRef.current = phase;
+    if (previousPhase !== GamePhase.PLAYING && phase === GamePhase.PLAYING) {
+      setShowRules(false);
+    }
+  }, [phase]);
 
   const executeCommand = useCallback((cmd: string, broadcast = true, payload: Record<string, any> = {}) => {
     const normalized = cmd.replace('/jec.', '');
@@ -530,7 +535,7 @@ const App: React.FC = () => {
       )}
 
       {/* Rules Modal */}
-      {showRules && phase !== GamePhase.PLAYING && (
+      {showRules && (
         <FaqModal onClose={() => setShowRules(false)} lang={lang} />
         /*<div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in duration-200">
