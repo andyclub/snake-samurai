@@ -4,10 +4,18 @@ import react from '@vitejs/plugin-react';
 import { execFileSync } from 'node:child_process';
 
 const getCommitCount = () => {
+  const injectedCount = Number(process.env.VITE_REPO_COMMIT_COUNT);
+  if (Number.isInteger(injectedCount) && injectedCount > 0) return injectedCount;
   try {
-    return Number(execFileSync('git', ['-C', '..', 'rev-list', '--count', 'HEAD'], { encoding: 'utf8' }).trim());
-  } catch {
-    return 122;
+    const repoRoot = path.resolve(__dirname, '..');
+    const count = Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim());
+    if (!Number.isInteger(count) || count < 1) throw new Error('Invalid Git commit count');
+    return count;
+  } catch (error) {
+    throw new Error(`Unable to determine repository commit count: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
