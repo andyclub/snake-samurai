@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { GamePhase } from './types';
+import type { GamePhase, Question } from './types';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://elfjnweivqggcwbvxgmv.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_V1UmkONRRebtAJDkgyEpRQ_qXvkLss5';
@@ -8,6 +8,43 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   db: { schema: 'jec' },
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
 });
+
+const questionRequests = new Map<string, Promise<Question[]>>();
+
+export const loadRansenQuestions = (levels?: string[]) => {
+  const cacheKey = levels?.length ? [...levels].sort().join('|') : 'all';
+  const existing = questionRequests.get(cacheKey);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const rows: any[] = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      let query = supabase
+        .from('ransen_questions')
+        .select('id,text,options,correct_index,question_type,level')
+        .eq('active', true)
+        .order('id')
+        .range(from, from + pageSize - 1);
+      if (levels?.length) query = query.in('level', levels);
+      const { data, error } = await query;
+      if (error) throw error;
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    return rows.map(row => ({
+      id: String(row.id),
+      text: String(row.text),
+      options: Array.isArray(row.options) ? row.options.map(String) : [],
+      correctIndex: Number(row.correct_index),
+      type: row.question_type as Question['type'],
+      level: row.level ? String(row.level) : undefined,
+    })).filter(question => question.options.length === 4 && question.correctIndex >= 0 && question.correctIndex <= 3);
+  })();
+  questionRequests.set(cacheKey, request);
+  request.catch(() => questionRequests.delete(cacheKey));
+  return request;
+};
 
 export const callRansenControl = async (method: 'GET' | 'POST', body?: Record<string, unknown>, roomId = 'main') => {
   try {

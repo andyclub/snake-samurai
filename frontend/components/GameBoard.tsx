@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
-import { Player, Slime, Encounter } from '../types';
+import { Player, Slime, Encounter, Question } from '../types';
 import { MOCK_QUESTIONS } from '../mockData';
+import { loadRansenQuestions } from '../supabase';
 import TriviaModal from './TriviaModal';
 import { audio } from '../audio';
 import SlimeAvatar from './SlimeAvatar';
@@ -60,12 +61,35 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
   const [zoneSize, setZoneSize] = useState(1); // 1 to 0.2
   const [remainingTime, setRemainingTime] = useState(() => Math.max(0, Math.ceil((startedAt + 300_000 - Date.now()) / 1000)));
   const [battleEffects, setBattleEffects] = useState<BattleEffect[]>([]);
+  const [questionBank, setQuestionBank] = useState<Question[]>([]);
+  const questionBankRef = useRef<Question[]>([]);
   const boundarySoundAt = useRef(0);
   const usedQuestionTextsRef = useRef(new Set<string>());
   const resolvingRef = useRef(new Set<string>());
   const endedRef = useRef(false);
   const shownEffectsRef = useRef(new Set<string>());
   const lastTouchInputAt = useRef(0);
+  questionBankRef.current = questionBank;
+
+  useEffect(() => {
+    let cancelled = false;
+    loadRansenQuestions(questionLevels).then(questions => {
+      if (!cancelled) {
+        const fallback = MOCK_QUESTIONS.filter(question =>
+          !questionLevels?.length || (question.level && questionLevels.includes(question.level))
+        );
+        setQuestionBank(questions.length ? questions : fallback);
+      }
+    }).catch(error => {
+      console.error('Failed to load Supabase question bank; using local fallback', error);
+      if (!cancelled) {
+        setQuestionBank(MOCK_QUESTIONS.filter(question =>
+          !questionLevels?.length || (question.level && questionLevels.includes(question.level))
+        ));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [questionLevels?.join('|')]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -242,10 +266,7 @@ const GameBoard: React.FC<Props> = ({ t, player, isSpectator, slimes, setSlimes,
         const dist = Math.hypot(s2.x - s1.x, s2.y - s1.y);
         if (dist < s1.size + s2.size) {
           // Collision detected!
-          const availableQuestions = MOCK_QUESTIONS.filter(question =>
-            !usedQuestionTextsRef.current.has(question.text)
-            && (!questionLevels?.length || (question.level && questionLevels.includes(question.level)))
-          );
+          const availableQuestions = questionBankRef.current.filter(question => !usedQuestionTextsRef.current.has(question.text));
           if (availableQuestions.length === 0) continue;
           const q = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
           usedQuestionTextsRef.current.add(q.text);
