@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "VITE_REPO_COMMIT_COUNT=$(git -C .. rev-list --count HEAD) vite build",
+    "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
