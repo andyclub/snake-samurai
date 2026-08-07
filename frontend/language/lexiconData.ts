@@ -71,15 +71,24 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 's12', canonical: '図書館', reading: 'としょかん', partsOfSpeech: ['noun'], meaning: 'Library', themes: ['study'], disasterRelated: false },
   { id: 's13', canonical: '質問', reading: 'しつもん', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Question', themes: ['study'], disasterRelated: false },
 
-  // 工作 (Work)
-  { id: 'w1', canonical: '会社', reading: 'かいしゃ', partsOfSpeech: ['noun'], meaning: 'Company / Office', themes: ['work'], disasterRelated: false },
-  { id: 'w2', canonical: '仕事', reading: 'しごと', partsOfSpeech: ['noun'], meaning: 'Work / Job', themes: ['work'], disasterRelated: false },
-  { id: 'w3', canonical: '会議', reading: 'かいぎ', partsOfSpeech: ['noun'], meaning: 'Meeting', themes: ['work'], disasterRelated: false },
-  { id: 'w4', canonical: '名刺', reading: 'めいし', partsOfSpeech: ['noun'], meaning: 'Business card', themes: ['work'], disasterRelated: false },
-  { id: 'w5', canonical: '電話', reading: 'でんわ', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Telephone', themes: ['work', 'life'], disasterRelated: false },
-  { id: 'w6', canonical: '作る', reading: 'つくる', partsOfSpeech: ['verb_v5r'], meaning: 'Make / Produce', themes: ['work', 'life'], disasterRelated: false },
-  { id: 'w7', canonical: '忙しい', reading: 'いそがしい', partsOfSpeech: ['adj_i'], meaning: 'Busy', themes: ['work'], disasterRelated: false },
-  { id: 'w8', canonical: '準備', reading: 'じゅんび', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Preparation', themes: ['work', 'disaster'], disasterRelated: true },
+  // 工作与职场 (Work & Office)
+  { id: 'w1', canonical: '会社', reading: 'かいしゃ', partsOfSpeech: ['noun'], meaning: 'Company / Office', themes: ['work', 'life', 'free'], disasterRelated: false },
+  { id: 'w2', canonical: '仕事', reading: 'しごと', partsOfSpeech: ['noun'], meaning: 'Work / Job', themes: ['work', 'life', 'free'], disasterRelated: false },
+  { id: 'w3', canonical: '会議', reading: 'かいぎ', partsOfSpeech: ['noun'], meaning: 'Meeting', themes: ['work', 'free'], disasterRelated: false },
+  { id: 'w4', canonical: '名刺', reading: 'めいし', partsOfSpeech: ['noun'], meaning: 'Business card', themes: ['work', 'free'], disasterRelated: false },
+  { id: 'w5', canonical: '電話', reading: 'でんわ', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Telephone', themes: ['work', 'life', 'free'], disasterRelated: false },
+  { id: 'w6', canonical: '作る', reading: 'つくる', partsOfSpeech: ['verb_v5r'], meaning: 'Make / Produce', themes: ['work', 'life', 'free'], disasterRelated: false },
+  { id: 'w7', canonical: '忙しい', reading: 'いそがしい', partsOfSpeech: ['adj_i'], meaning: 'Busy', themes: ['work', 'life', 'free'], disasterRelated: false },
+  { id: 'w8', canonical: '準備', reading: 'じゅんび', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Preparation', themes: ['work', 'disaster', 'free'], disasterRelated: true },
+  { id: 'w9', canonical: '社長', reading: 'しゃちょう', partsOfSpeech: ['noun'], meaning: 'Company President', themes: ['work', 'life', 'free'], disasterRelated: false },
+  { id: 'w10', canonical: '部長', reading: 'ぶちょう', partsOfSpeech: ['noun'], meaning: 'Department Manager', themes: ['work', 'free'], disasterRelated: false },
+  { id: 'w11', canonical: '課長', reading: 'かちょう', partsOfSpeech: ['noun'], meaning: 'Section Chief', themes: ['work', 'free'], disasterRelated: false },
+  { id: 'w12', canonical: '社員', reading: 'しゃいん', partsOfSpeech: ['noun'], meaning: 'Company Employee', themes: ['work', 'free'], disasterRelated: false },
+  { id: 'w13', canonical: '病院', reading: 'びょういん', partsOfSpeech: ['noun'], meaning: 'Hospital', themes: ['work', 'disaster', 'life', 'free'], disasterRelated: true },
+  { id: 'w14', canonical: '医者', reading: 'いしゃ', partsOfSpeech: ['noun'], meaning: 'Doctor', themes: ['work', 'disaster', 'life', 'free'], disasterRelated: true },
+  { id: 'w15', canonical: '警察', reading: 'けいさつ', partsOfSpeech: ['noun'], meaning: 'Police', themes: ['work', 'disaster', 'life', 'free'], disasterRelated: true },
+  { id: 'w16', canonical: '消防', reading: 'しょうぼう', partsOfSpeech: ['noun'], meaning: 'Fire Department', themes: ['work', 'disaster', 'life', 'free'], disasterRelated: true },
+  { id: 'w17', canonical: '銀行', reading: 'ぎんこう', partsOfSpeech: ['noun'], meaning: 'Bank', themes: ['work', 'life', 'free'], disasterRelated: false },
 
   // 旅行 (Travel)
   { id: 't1', canonical: '旅行', reading: 'りょこう', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Travel', themes: ['travel'], disasterRelated: false },
