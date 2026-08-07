@@ -219,6 +219,8 @@ const App: React.FC = () => {
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
     setPhase(GamePhase.PLAYING);
+    audio.init();
+    audio.setBGM('BATTLE');
   }, [mode, theme, player, createPlayerSnake]);
 
   // Clean 60fps Game Loop using mutable refs
@@ -245,6 +247,7 @@ const App: React.FC = () => {
           phaseRef.current = GamePhase.THEATER;
           setPhase(GamePhase.THEATER);
           audio.playVictory();
+          audio.setBGM('OFF');
           return;
         }
 
@@ -339,6 +342,9 @@ const App: React.FC = () => {
       if (colRes.events.spills.length > 0) {
         audio.playTailSpill();
       }
+      if (colRes.events.foodPickups.length > 0) {
+        audio.playPickup();
+      }
 
       // Update refs
       snakesRef.current = colRes.updatedSnakes;
@@ -376,6 +382,7 @@ const App: React.FC = () => {
     foodsRef.current = settled.updatedFoods;
     setSnakes({ ...snakesRef.current });
     setFoods({ ...foodsRef.current });
+    audio.playWordCompleted();
   };
 
   // Settle Sentence (SENTENCE_READY)
@@ -389,6 +396,7 @@ const App: React.FC = () => {
     foodsRef.current = settled.updatedFoods;
     setSnakes({ ...snakesRef.current });
     setFoods({ ...foodsRef.current });
+    audio.playSentenceCompleted();
   };
 
   // Abandon / Spill Tail

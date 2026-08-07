@@ -10,7 +10,8 @@ export function renderGame(
   foods: Record<string, FoodState>,
   mySnakeId: string | null,
   cameraZoom: number,
-  clickEffectPoint: { x: number; y: number; time: number } | null
+  clickEffectPoint: { x: number; y: number; time: number } | null,
+  cameraOverride?: { x: number; y: number }
 ) {
   ctx.save();
   ctx.clearRect(0, 0, width, height);
@@ -20,8 +21,8 @@ export function renderGame(
   ctx.fillRect(0, 0, width, height);
 
   const mySnake = mySnakeId ? snakes[mySnakeId] : null;
-  const cameraX = mySnake ? mySnake.head.x : (bounds.minX + bounds.maxX) / 2;
-  const cameraY = mySnake ? mySnake.head.y : (bounds.minY + bounds.maxY) / 2;
+  const cameraX = cameraOverride ? cameraOverride.x : (mySnake ? mySnake.head.x : (bounds.minX + bounds.maxX) / 2);
+  const cameraY = cameraOverride ? cameraOverride.y : (mySnake ? mySnake.head.y : (bounds.minY + bounds.maxY) / 2);
 
   ctx.translate(width / 2, height / 2);
   ctx.scale(cameraZoom, cameraZoom);

@@ -3,8 +3,10 @@ import { ArenaBounds, BodyPoint, SnakeState } from '../types';
 export const BASE_SPEED = 180; // pixels per second
 export const MIN_SPEED_RATIO = 0.35;
 
-export function calculateSnakeSpeed(earnedLengthUnits: number): number {
-  const speed = BASE_SPEED * Math.pow(0.91, earnedLengthUnits);
+export function calculateSnakeSpeed(earnedLengthUnits: number, heldFoodCount: number = 0): number {
+  const baseSpeedReduction = Math.pow(0.91, earnedLengthUnits);
+  const heldFoodReduction = Math.pow(0.97, heldFoodCount); // 3% slower per held food
+  const speed = BASE_SPEED * baseSpeedReduction * heldFoodReduction;
   return Math.max(BASE_SPEED * MIN_SPEED_RATIO, speed);
 }
 
@@ -14,7 +16,7 @@ export function updateSnakePosition(
   bounds: ArenaBounds,
   allSnakes: Record<string, SnakeState> = {}
 ): SnakeState {
-  const speed = calculateSnakeSpeed(snake.earnedLength);
+  const speed = calculateSnakeSpeed(snake.earnedLength, snake.heldFoods.length);
   const dx = snake.target.x - snake.head.x;
   const dy = snake.target.y - snake.head.y;
   const dist = Math.hypot(dx, dy);
@@ -63,6 +65,20 @@ export function updateSnakePosition(
         break;
       }
     }
+
+    // Check collision with other snake's held foods
+    if (!isBlocked && otherId !== snake.id && otherSnake.heldFoods) {
+      for (let i = 0; i < otherSnake.heldFoods.length; i++) {
+        const fx = otherSnake.head.x + otherSnake.direction.x * 26 - otherSnake.direction.x * (i * 24);
+        const fy = otherSnake.head.y + otherSnake.direction.y * 26 - otherSnake.direction.y * (i * 24);
+        const d = Math.hypot(nextX - fx, nextY - fy);
+        if (d < collisionRadius) {
+          isBlocked = true;
+          break;
+        }
+      }
+    }
+
     if (isBlocked) break;
   }
 

@@ -55,6 +55,10 @@ export const GameBoard: React.FC<Props> = ({
   const clickEffectRef = useRef(clickEffect);
   clickEffectRef.current = clickEffect;
 
+  const cameraXRef = useRef(0);
+  const cameraYRef = useRef(0);
+  const cameraZoomRef = useRef(1.2);
+
   // HUD state: synced from refs every 150ms for React UI elements
   const [hudSnakes, setHudSnakes] = useState<Record<string, SnakeState>>({});
   useEffect(() => {
@@ -144,7 +148,16 @@ export const GameBoard: React.FC<Props> = ({
           }
 
           const currentSnake = getMySnake();
-          const zoom = calculateCameraZoom(currentSnake ? currentSnake.totalLength : 3);
+          const targetZoom = calculateCameraZoom(currentSnake ? currentSnake.totalLength : 3);
+          const targetX = currentSnake ? currentSnake.head.x : 0;
+          const targetY = currentSnake ? currentSnake.head.y : 0;
+          
+          // Smooth camera lerp (0.12 = smooth follow speed)
+          const lerp = 0.12;
+          cameraXRef.current += (targetX - cameraXRef.current) * lerp;
+          cameraYRef.current += (targetY - cameraYRef.current) * lerp;
+          cameraZoomRef.current += (targetZoom - cameraZoomRef.current) * lerp;
+
           renderGame(
             ctx,
             width,
@@ -153,8 +166,9 @@ export const GameBoard: React.FC<Props> = ({
             snakesRef.current,
             foodsRef.current,
             currentSnake ? currentSnake.id : null,
-            zoom,
-            clickEffectRef.current
+            cameraZoomRef.current,
+            clickEffectRef.current,
+            { x: cameraXRef.current, y: cameraYRef.current }
           );
         }
       }
