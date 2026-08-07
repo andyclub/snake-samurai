@@ -72,7 +72,7 @@ const SENTENCE_RULES: SentenceRule[] = [
   // 自由/主题通用句子 (General / Theme Sentences)
   {
     id: 'sen_gen_1',
-    regex: /^(学校|会社|駅|ホテル|海|山|日本|京都)(へ|に)(行く|来る|帰る)$/,
+    regex: /^(学校|会社|駅|ホテル|海|山|日本|京都|東京|新宿|渋谷|池袋|銀座|上野|浅草|横浜|富山|大阪)(へ|に)(行く|来る|帰る)$/,
     template: (m) => `${m[1]}${m[2]}${m[3]}。`,
     punctuations: ['。'],
     themes: ['travel', 'study', 'work', 'life', 'free']
