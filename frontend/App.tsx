@@ -48,12 +48,16 @@ const App: React.FC = () => {
   const [snakes, setSnakes] = useState<Record<string, SnakeState>>({});
   const [foods, setFoods] = useState<Record<string, FoodState>>({});
 
-  // Mutable refs for 60fps game loop execution to prevent nested setState calls
+  // Mutable refs for crash-proof 60fps game loop execution
+  const phaseRef = useRef(phase);
+  const startedAtRef = useRef(startedAt);
   const snakesRef = useRef(snakes);
   const foodsRef = useRef(foods);
   const boundsRef = useRef(bounds);
   const themeRef = useRef(theme);
 
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
   useEffect(() => { snakesRef.current = snakes; }, [snakes]);
   useEffect(() => { foodsRef.current = foods; }, [foods]);
   useEffect(() => { boundsRef.current = bounds; }, [bounds]);
@@ -71,42 +75,49 @@ const App: React.FC = () => {
     player,
     onCommand: async (cmd, payload) => {
       if (cmd === 'on') {
-        setPhase(GamePhase.LOBBY);
         if (payload.mode) setMode(payload.mode);
         if (payload.theme) setTheme(payload.theme);
         setLobbyEndsAt(payload.lobbyEndsAt || Date.now() + 30_000);
       } else if (cmd === 'off') {
+        phaseRef.current = GamePhase.OFF;
         setPhase(GamePhase.OFF);
       }
       return { ok: true, message: 'Command executed' };
     },
     onSnapshot: (snapshot) => {
-      if (snapshot) {
-        setPhase(snapshot.phase);
-        setSnakes(snapshot.snakes || {});
-        setFoods(snapshot.foods || {});
-        setBounds(snapshot.bounds || INITIAL_BOUNDS);
-        if (snapshot.startedAt) setStartedAt(snapshot.startedAt);
+      // Protect active local game session against empty/stale remote snapshot overwrites
+      if (snapshot && phaseRef.current !== GamePhase.PLAYING) {
+        if (snapshot.snakes && Object.keys(snapshot.snakes).length > 0) {
+          snakesRef.current = snapshot.snakes;
+          foodsRef.current = snapshot.foods || {};
+          boundsRef.current = snapshot.bounds || INITIAL_BOUNDS;
+          phaseRef.current = snapshot.phase;
+
+          setPhase(snapshot.phase);
+          setSnakes(snapshot.snakes);
+          setFoods(snapshot.foods || {});
+          setBounds(snapshot.bounds || INITIAL_BOUNDS);
+          if (snapshot.startedAt) {
+            startedAtRef.current = snapshot.startedAt;
+            setStartedAt(snapshot.startedAt);
+          }
+        }
       }
     },
     onMoveIntent: (playerId, targetX, targetY) => {
-      setSnakes(prev => {
-        const sId = `snake-${playerId}`;
-        const snake = prev[sId];
-        if (!snake) return prev;
-        return {
-          ...prev,
-          [sId]: { ...snake, target: { x: targetX, y: targetY } }
-        };
-      });
+      const sId = `snake-${playerId}`;
+      const s = snakesRef.current[sId];
+      if (s) {
+        snakesRef.current[sId] = { ...s, target: { x: targetX, y: targetY } };
+      }
     },
     getSnapshot: () => ({
       id: 'main',
       mode,
       theme,
-      phase,
-      startedAt,
-      endsAt: startedAt ? startedAt + 120_000 : null,
+      phase: phaseRef.current,
+      startedAt: startedAtRef.current,
+      endsAt: startedAtRef.current ? startedAtRef.current + 120_000 : null,
       bounds: boundsRef.current,
       snakes: snakesRef.current,
       foods: foodsRef.current,
@@ -198,6 +209,8 @@ const App: React.FC = () => {
     snakesRef.current = allSnakes;
     foodsRef.current = initFoods;
     boundsRef.current = INITIAL_BOUNDS;
+    phaseRef.current = GamePhase.PLAYING;
+    startedAtRef.current = now;
 
     setSnakes(allSnakes);
     setFoods(initFoods);
@@ -206,24 +219,28 @@ const App: React.FC = () => {
     setPhase(GamePhase.PLAYING);
   }, [player]);
 
-  // Clean 60fps Game Loop using mutable refs to decouple state calls
+  // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
     if (phase !== GamePhase.PLAYING) return;
     let animationFrameId: number;
     let lastTime = performance.now();
 
     const loop = (currentTime: number) => {
+      if (phaseRef.current !== GamePhase.PLAYING) return;
+
       const deltaSeconds = Math.min(0.1, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
       // 1. Update 120s match timer & Boundary Shrinking
       let currentBounds = boundsRef.current;
-      if (startedAt) {
-        const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+      const currentStartedAt = startedAtRef.current;
+      if (currentStartedAt) {
+        const elapsed = Math.floor((Date.now() - currentStartedAt) / 1000);
         const remaining = Math.max(0, 120 - elapsed);
         setTimeRemaining(remaining);
 
         if (remaining <= 0) {
+          phaseRef.current = GamePhase.THEATER;
           setPhase(GamePhase.THEATER);
           audio.playVictory();
           return;
@@ -233,7 +250,6 @@ const App: React.FC = () => {
         const currentSize = 1000 - shrinkFactor * 200;
         currentBounds = { minX: -currentSize, maxX: currentSize, minY: -currentSize, maxY: currentSize };
         boundsRef.current = currentBounds;
-        setBounds(currentBounds);
       }
 
       // 2. Perform frame calculations on ref data
@@ -316,19 +332,28 @@ const App: React.FC = () => {
         audio.playTailSpill();
       }
 
-      // Update refs & React state cleanly
+      // Update refs
       snakesRef.current = colRes.updatedSnakes;
       foodsRef.current = colRes.updatedFoods;
-
-      setSnakes(colRes.updatedSnakes);
-      setFoods(colRes.updatedFoods);
 
       animationFrameId = requestAnimationFrame(loop);
     };
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, startedAt]);
+  }, [phase]);
+
+  // Sync React state periodically for Leaderboard & candidate HUD
+  useEffect(() => {
+    if (phase !== GamePhase.PLAYING) return;
+    const interval = setInterval(() => {
+      setSnakes({ ...snakesRef.current });
+      setFoods({ ...foodsRef.current });
+      setBounds({ ...boundsRef.current });
+    }, 150); // 6.6fps UI sync
+
+    return () => clearInterval(interval);
+  }, [phase]);
 
   // Pointer target input
   const handlePointerTarget = (x: number, y: number) => {
@@ -338,7 +363,6 @@ const App: React.FC = () => {
     if (s) {
       const updated = { ...snakesRef.current, [mySnakeId]: { ...s, target: { x, y } } };
       snakesRef.current = updated;
-      setSnakes(updated);
     }
   };
 
@@ -351,8 +375,8 @@ const App: React.FC = () => {
     const settled = settleWord(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
     snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
     foodsRef.current = settled.updatedFoods;
-    setSnakes(snakesRef.current);
-    setFoods(foodsRef.current);
+    setSnakes({ ...snakesRef.current });
+    setFoods({ ...foodsRef.current });
   };
 
   // Settle Sentence (SENTENCE_READY)
@@ -364,8 +388,8 @@ const App: React.FC = () => {
     const settled = settleSentence(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
     snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
     foodsRef.current = settled.updatedFoods;
-    setSnakes(snakesRef.current);
-    setFoods(foodsRef.current);
+    setSnakes({ ...snakesRef.current });
+    setFoods({ ...foodsRef.current });
   };
 
   // Abandon / Spill Tail
@@ -374,8 +398,8 @@ const App: React.FC = () => {
     const res = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
     snakesRef.current = res.updatedSnakes;
     foodsRef.current = res.updatedFoods;
-    setSnakes(res.updatedSnakes);
-    setFoods(res.updatedFoods);
+    setSnakes({ ...snakesRef.current });
+    setFoods({ ...foodsRef.current });
   };
 
   if (IS_REMOTE) {
@@ -389,15 +413,15 @@ const App: React.FC = () => {
     phase,
     startedAt,
     endsAt: startedAt ? startedAt + 120_000 : null,
-    bounds,
-    snakes,
-    foods,
+    bounds: boundsRef.current,
+    snakes: snakesRef.current,
+    foods: foodsRef.current,
     leaderboard: [],
     version: 1
   };
 
   return (
-    <div className="w-screen h-screen bg-slate-950 text-white font-sans overflow-hidden">
+    <div className="w-screen h-[100dvh] bg-slate-950 text-white font-sans overflow-hidden">
       {phase === GamePhase.LOBBY && (
         <LobbyScreen
           player={player}
@@ -416,9 +440,9 @@ const App: React.FC = () => {
       {phase === GamePhase.PLAYING && (
         <GameBoard
           player={player}
-          snakes={snakes}
-          foods={foods}
-          bounds={bounds}
+          snakes={snakesRef.current}
+          foods={foodsRef.current}
+          bounds={boundsRef.current}
           theme={theme}
           mode={mode}
           timeRemainingSeconds={timeRemaining}
@@ -436,7 +460,10 @@ const App: React.FC = () => {
         <TheaterScreen
           arenaState={arenaState}
           player={player}
-          onRestart={() => setPhase(GamePhase.LOBBY)}
+          onRestart={() => {
+            phaseRef.current = GamePhase.LOBBY;
+            setPhase(GamePhase.LOBBY);
+          }}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}
