@@ -1,5 +1,5 @@
 {
-  "name": "kazeabc-ransen",
+  "name": "snake-samurai",
   "workspaces": ["frontend", "backend"], 
   "scripts": {
     "build": "npm run build --prefix frontend",
