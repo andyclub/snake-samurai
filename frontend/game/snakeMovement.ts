@@ -41,8 +41,9 @@ export function updateSnakePosition(
   if (nextY <= minY) { nextY = minY; onBoundary = true; }
   if (nextY >= maxY) { nextY = maxY; onBoundary = true; }
 
-  // SOLID PHYSICAL BODY COLLISION (Cannot pass through other snakes or self body)
-  const collisionRadius = 28; // Head radius (20) + body radius (16) distance threshold
+  // SOLID PHYSICAL BODY COLLISION (Cannot pass through other snakes' main body or self body)
+  // NOTE: Exclude the last 5 tail nodes of enemy snakes so head can reach tail for battle attacks!
+  const collisionRadius = 26;
   let isBlocked = false;
 
   for (const otherId of Object.keys(allSnakes)) {
@@ -50,9 +51,11 @@ export function updateSnakePosition(
     if (!otherSnake || !otherSnake.connected) continue;
 
     const path = otherSnake.bodyPath;
-    const startIndex = (otherId === snake.id) ? 6 : 0; // Skip first 6 nodes for self body to allow head turning
+    const startIndex = (otherId === snake.id) ? 6 : 0;
+    // Exclude tail nodes (last 5 nodes) from solid block so attacker head can reach tail
+    const endIndex = (otherId === snake.id) ? path.length : Math.max(0, path.length - 5);
 
-    for (let i = startIndex; i < path.length; i++) {
+    for (let i = startIndex; i < endIndex; i++) {
       const node = path[i];
       const d = Math.hypot(nextX - node.x, nextY - node.y);
       if (d < collisionRadius) {
@@ -72,9 +75,9 @@ export function updateSnakePosition(
   const newHead = { x: nextX, y: nextY };
   const newDirection = dist > 5 ? { x: vx / speed, y: vy / speed } : snake.direction;
 
-  // Update body path (history of head positions)
-  const segmentDistance = 14; // Distance between body nodes
-  const totalNodesNeeded = Math.max(12, 12 + snake.totalLength * 3);
+  // Update body path (guarantee at least 20 nodes = ~240px body length = >5 head diameters!)
+  const segmentDistance = 12; // Distance between body nodes
+  const totalNodesNeeded = Math.max(20, 20 + snake.totalLength * 3);
 
   const updatedPath: BodyPoint[] = [newHead];
   let currentPos = newHead;
