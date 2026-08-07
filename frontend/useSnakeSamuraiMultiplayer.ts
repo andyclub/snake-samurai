@@ -11,13 +11,29 @@ export type HistoryResult = { ok: boolean; message?: string; page: number; pageS
 interface Options {
   roomId: string;
   player: Player;
+  phaseRef: React.MutableRefObject<GamePhase>;
   onCommand: (command: string, payload: Record<string, any>) => CommandResult;
   onSnapshot: (snapshot: Snapshot) => void;
   onMoveIntent: (playerId: string, targetX: number, targetY: number) => void;
   getSnapshot: () => Snapshot;
 }
 
-export function useSnakeSamuraiMultiplayer({ roomId, player, onCommand, onSnapshot, onMoveIntent, getSnapshot }: Options) {
+// Safe UUID generator that works on HTTP and HTTPS
+function safeUUID(): string {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+  } catch { /* fall through */ }
+  // Fallback: generate a v4-like UUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand, onSnapshot, onMoveIntent, getSnapshot }: Options) {
   const [userId, setUserId] = useState<string>();
   const [isHost, setIsHost] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
@@ -27,6 +43,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onCommand, onSnapsh
   const callbacks = useRef({ onCommand, onSnapshot, onMoveIntent, getSnapshot });
   callbacks.current = { onCommand, onSnapshot, onMoveIntent, getSnapshot };
 
+  // Connect ONCE on mount. Do NOT re-run when player.name/color changes.
   useEffect(() => {
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
@@ -34,14 +51,18 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onCommand, onSnapsh
     const connect = async () => {
       try {
         const savedId = localStorage.getItem('kazeabc_device_id');
-        const id = savedId || crypto.randomUUID();
+        const id = savedId || safeUUID();
         if (!savedId) localStorage.setItem('kazeabc_device_id', id);
         if (cancelled) return;
         setUserId(id);
 
-        const control = await callSnakeSamuraiControl('GET', undefined, roomId);
-        if (control.ok && control.phase === GamePhase.LOBBY) {
-          callbacks.current.onCommand('on', { serverState: true, lobbyEndsAt: control.lobbyEndsAt });
+        // Only fetch server state if we are currently in LOBBY phase.
+        // This prevents kicking users out of PLAYING back to LOBBY.
+        if (phaseRef.current === GamePhase.LOBBY) {
+          const control = await callSnakeSamuraiControl('GET', undefined, roomId);
+          if (!cancelled && control.ok && control.phase === GamePhase.LOBBY && phaseRef.current === GamePhase.LOBBY) {
+            callbacks.current.onCommand('on', { serverState: true, lobbyEndsAt: control.lobbyEndsAt });
+          }
         }
 
         channel = supabase.channel(`snake-samurai:${roomId}`, {
@@ -97,7 +118,15 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onCommand, onSnapsh
       cancelled = true;
       if (channel) supabase.removeChannel(channel);
     };
-  }, [roomId, player.id, player.name, player.color]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]); // Only reconnect when roomId changes, NOT on player name/color changes
+
+  // Update presence when player name/color changes (without reconnecting)
+  useEffect(() => {
+    if (channelRef.current && connection === 'online' && userId) {
+      channelRef.current.track({ player: { ...player, id: userId }, onlineAt: new Date().toISOString() });
+    }
+  }, [player.name, player.color, connection, userId]);
 
   const sendMoveIntent = useCallback((targetX: number, targetY: number) => {
     if (channelRef.current && connection === 'online') {

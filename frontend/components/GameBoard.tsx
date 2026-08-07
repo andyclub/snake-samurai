@@ -8,11 +8,13 @@ import { audio } from '../audio';
 import { saveLanguagePreference } from '../i18n';
 import { Trophy, Sparkles, Globe, HelpCircle, QrCode, X } from 'lucide-react';
 
+type MutableRef<T> = React.MutableRefObject<T>;
+
 interface Props {
   player: Player;
-  snakes: Record<string, SnakeState>;
-  foods: Record<string, FoodState>;
-  bounds: ArenaBounds;
+  snakesRef: MutableRef<Record<string, SnakeState>>;
+  foodsRef: MutableRef<Record<string, FoodState>>;
+  boundsRef: MutableRef<ArenaBounds>;
   theme: Theme;
   mode: string;
   timeRemainingSeconds: number;
@@ -30,9 +32,9 @@ const QR_IMAGE_URL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&d
 
 export const GameBoard: React.FC<Props> = ({
   player,
-  snakes,
-  foods,
-  bounds,
+  snakesRef,
+  foodsRef,
+  boundsRef,
   theme,
   mode,
   timeRemainingSeconds,
@@ -50,19 +52,19 @@ export const GameBoard: React.FC<Props> = ({
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const isInteractingRef = useRef(false);
-
-  // Keep live values in refs for decoupled 60fps canvas rendering
-  const snakesRef = useRef(snakes);
-  const foodsRef = useRef(foods);
-  const boundsRef = useRef(bounds);
   const clickEffectRef = useRef(clickEffect);
-
-  snakesRef.current = snakes;
-  foodsRef.current = foods;
-  boundsRef.current = bounds;
   clickEffectRef.current = clickEffect;
 
-  // Helper to dynamically get current local player snake
+  // HUD state: synced from refs every 150ms for React UI elements
+  const [hudSnakes, setHudSnakes] = useState<Record<string, SnakeState>>({});
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHudSnakes({ ...snakesRef.current });
+    }, 150);
+    return () => clearInterval(interval);
+  }, [snakesRef]);
+
+  // Helper to dynamically get current local player snake (reads from live ref)
   const getMySnake = () => {
     const all = snakesRef.current;
     return all[`snake-${player.id}`] || Object.values(all).find(s => s.playerId === player.id) || Object.values(all)[0];
@@ -168,7 +170,7 @@ export const GameBoard: React.FC<Props> = ({
   const wordSearch = searchCandidates(heldFoods, theme);
   const sentenceAnalysis = analyzeSentenceBuilding(heldFoods, theme);
 
-  const leaderboard = Object.values(snakes)
+  const leaderboard = Object.values(hudSnakes)
     .filter(s => s.connected)
     .sort((a, b) => b.totalLength - a.totalLength);
 

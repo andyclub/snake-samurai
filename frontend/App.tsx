@@ -102,6 +102,7 @@ const App: React.FC = () => {
   const { isHost, sendMoveIntent } = useSnakeSamuraiMultiplayer({
     roomId: 'main',
     player,
+    phaseRef,
     onCommand: async (cmd, payload) => {
       if (cmd === 'on' || cmd === 'restart') {
         if (payload.mode) setMode(payload.mode);
@@ -350,17 +351,8 @@ const App: React.FC = () => {
     return () => cancelAnimationFrame(animationFrameId);
   }, [phase, player, createPlayerSnake]);
 
-  // Sync React state periodically for Leaderboard & candidate HUD
-  useEffect(() => {
-    if (phase !== GamePhase.PLAYING) return;
-    const interval = setInterval(() => {
-      setSnakes({ ...snakesRef.current });
-      setFoods({ ...foodsRef.current });
-      setBounds({ ...boundsRef.current });
-    }, 150); // 6.6fps UI sync
-
-    return () => clearInterval(interval);
-  }, [phase]);
+  // Note: GameBoard reads directly from snakesRef/foodsRef/boundsRef for 60fps rendering
+  // and manages its own 150ms HUD sync internally.
 
   // Pointer target input
   const handlePointerTarget = (x: number, y: number) => {
@@ -447,9 +439,9 @@ const App: React.FC = () => {
       {phase === GamePhase.PLAYING && (
         <GameBoard
           player={player}
-          snakes={snakesRef.current}
-          foods={foodsRef.current}
-          bounds={boundsRef.current}
+          snakesRef={snakesRef}
+          foodsRef={foodsRef}
+          boundsRef={boundsRef}
           theme={theme}
           mode={mode}
           timeRemainingSeconds={timeRemaining}
