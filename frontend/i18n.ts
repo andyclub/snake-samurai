@@ -2,7 +2,7 @@ import { Language } from './types';
 
 export const translations: Record<Language, Record<string, string>> = {
   'zh-CN': {
-    'app.title': '听风大乱斗',
+    'app.title': '聴風・侍蛇',
     'status.off': '活动已结束',
     'btn.request': '申请开启游戏',
     'btn.startRound': '开启新一局',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ArenaBounds, ArenaMode, ArenaState, CandidateSentence, CandidateWord, FoodState, GamePhase, Language, Player, SnakeState, Theme } from './types';
 import { translations, getBrowserLanguage } from './i18n';
 import GameBoard from './components/GameBoard';
@@ -7,7 +7,7 @@ import TheaterScreen from './components/TheaterScreen';
 import RemoteControl from './components/RemoteControl';
 import { audio } from './audio';
 import { useRansenMultiplayer } from './useRansenMultiplayer';
-import { generateInitialFoods } from './game/foodGenerator';
+import { generateInitialFoods, generateSingleFood } from './game/foodGenerator';
 import { updateSnakePosition } from './game/snakeMovement';
 import { checkAndResolveCollisions, triggerSelfTailSpill } from './game/collisionEngine';
 import { settleSentence, settleWord } from './game/settleManager';
@@ -20,8 +20,14 @@ const INITIAL_BOUNDS: ArenaBounds = { minX: -1000, maxX: 1000, minY: -1000, maxY
 const KATAKANA = ['アオイ', 'カゼ', 'ソラ', 'ナギ', 'リン', 'ユキ', 'ハル', 'レイ', 'ミオ', 'ルイ'];
 const randomKatakana = () => KATAKANA[Math.floor(Math.random() * KATAKANA.length)] + Math.floor(10 + Math.random() * 90);
 
+const INITIAL_BOTS = [
+  { id: 'bot-1', name: '侍カゼ', color: '#ef4444' },
+  { id: 'bot-2', name: '忍者ソラ', color: '#10b981' },
+  { id: 'bot-3', name: '武士ナギ', color: '#8b5cf6' }
+];
+
 const App: React.FC = () => {
-  const [lang] = useState<Language>(getBrowserLanguage());
+  const [lang, setLang] = useState<Language>(getBrowserLanguage());
   const [phase, setPhase] = useState<GamePhase>(GamePhase.LOBBY);
   const [mode, setMode] = useState<ArenaMode>('free');
   const [theme, setTheme] = useState<Theme>('free');
@@ -31,7 +37,7 @@ const App: React.FC = () => {
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
 
   // Player State
-  const [player] = useState<Player>(() => ({
+  const [player, setPlayer] = useState<Player>(() => ({
     id: `p-${Date.now()}`,
     name: localStorage.getItem('kazeabc_name') || randomKatakana(),
     color: localStorage.getItem('kazeabc_color') || '#3b82f6',
@@ -41,6 +47,12 @@ const App: React.FC = () => {
   // Game State
   const [snakes, setSnakes] = useState<Record<string, SnakeState>>({});
   const [foods, setFoods] = useState<Record<string, FoodState>>({});
+
+  const handleUpdatePlayer = (name: string, color: string) => {
+    localStorage.setItem('kazeabc_name', name);
+    localStorage.setItem('kazeabc_color', color);
+    setPlayer(prev => ({ ...prev, name, color }));
+  };
 
   // Multiplayer Hook
   const { isHost, sendMoveIntent, broadcastSnapshot } = useRansenMultiplayer({
@@ -92,13 +104,22 @@ const App: React.FC = () => {
     })
   });
 
-  // Handle Start Match (120s)
+  // Handle Mode Selection in Lobby
+  const handleSelectMode = (newMode: ArenaMode, newTheme: Theme) => {
+    setMode(newMode);
+    setTheme(newTheme);
+  };
+
+  // Start Match with initial length & active bots
   const startMatch = useCallback(() => {
     const now = Date.now();
-    const initFoods = generateInitialFoods(Math.max(4, Object.keys(snakes).length), INITIAL_BOUNDS);
-    const mySnakeId = `snake-${player.id}`;
+    const allSnakes: Record<string, SnakeState> = {};
 
-    const mySnake: SnakeState = {
+    // Initial human snake with 6 body nodes
+    const mySnakeId = `snake-${player.id}`;
+    const initialPath = Array.from({ length: 16 }, (_, i) => ({ x: -i * 14, y: 0 }));
+
+    allSnakes[mySnakeId] = {
       id: mySnakeId,
       playerId: player.id,
       nickname: player.name,
@@ -106,11 +127,11 @@ const App: React.FC = () => {
       head: { x: 0, y: 0 },
       direction: { x: 1, y: 0 },
       target: { x: 100, y: 0 },
-      bodyPath: Array(10).fill({ x: 0, y: 0 }),
+      bodyPath: initialPath,
       bodySegments: [],
-      baseLength: 3,
+      baseLength: 6,
       earnedLength: 0,
-      totalLength: 3,
+      totalLength: 6,
       currentSpeed: 180,
       heldFoods: [],
       buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
@@ -119,7 +140,39 @@ const App: React.FC = () => {
       connected: true
     };
 
-    setSnakes({ [mySnakeId]: mySnake });
+    // Add 3 Active Bot Snakes
+    INITIAL_BOTS.forEach((botDef, index) => {
+      const botId = `snake-${botDef.id}`;
+      const startX = (index + 1) * 200 * (index % 2 === 0 ? 1 : -1);
+      const startY = (index + 1) * 150 * (index % 2 === 0 ? -1 : 1);
+      const botPath = Array.from({ length: 16 }, (_, i) => ({ x: startX - i * 14, y: startY }));
+
+      allSnakes[botId] = {
+        id: botId,
+        playerId: botDef.id,
+        nickname: botDef.name,
+        baseColor: botDef.color,
+        head: { x: startX, y: startY },
+        direction: { x: 1, y: 0 },
+        target: { x: startX + 50, y: startY + 50 },
+        bodyPath: botPath,
+        bodySegments: [],
+        baseLength: 6,
+        earnedLength: 0,
+        totalLength: 6,
+        currentSpeed: 180,
+        heldFoods: [],
+        buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
+        completionHistory: [],
+        isBot: true,
+        botLevel: index + 2,
+        connected: true
+      };
+    });
+
+    const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS);
+
+    setSnakes(allSnakes);
     setFoods(initFoods);
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
@@ -136,7 +189,8 @@ const App: React.FC = () => {
       const deltaSeconds = Math.min(0.1, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
-      // Update 120s match timer
+      // 1. Update 120s match timer & Half Speed Boundary Shrinking
+      let currentBounds = bounds;
       if (startedAt) {
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
         const remaining = Math.max(0, 120 - elapsed);
@@ -148,24 +202,57 @@ const App: React.FC = () => {
           return;
         }
 
-        // Shrink arena bounds over 120s
-        const shrinkFactor = elapsed / 120;
-        const currentSize = 1000 - shrinkFactor * 400; // Shrinks from 1000 to 600
-        setBounds({ minX: -currentSize, maxX: currentSize, minY: -currentSize, maxY: currentSize });
+        // Half shrink speed: shrinks from 1000 to 800 over 120s (half of original 400 delta)
+        const shrinkFactor = elapsed / 240;
+        const currentSize = 1000 - shrinkFactor * 200;
+        currentBounds = { minX: -currentSize, maxX: currentSize, minY: -currentSize, maxY: currentSize };
+        setBounds(currentBounds);
       }
 
-      // Update snake physics & bot AI
+      // 2. Respawn foods that fall outside shrink bounds
+      setFoods(prevFoods => {
+        const nextFoods = { ...prevFoods };
+        let modified = false;
+
+        for (const fId of Object.keys(nextFoods)) {
+          const food = nextFoods[fId];
+          if (food.state !== 'ground') continue;
+
+          if (
+            food.x < currentBounds.minX || food.x > currentBounds.maxX ||
+            food.y < currentBounds.minY || food.y > currentBounds.maxY
+          ) {
+            nextFoods[fId] = generateSingleFood(fId, currentBounds);
+            modified = true;
+          }
+        }
+        return modified ? nextFoods : prevFoods;
+      });
+
+      // 3. Update snake physics & Bot AI participation
       setSnakes(prevSnakes => {
         const updated: Record<string, SnakeState> = {};
         for (const sId of Object.keys(prevSnakes)) {
           let snake = prevSnakes[sId];
 
+          // Bot AI Active Participation
           if (snake.isBot) {
-            const aiDecision = updateBotAI(snake, prevSnakes, foods, bounds);
+            const aiDecision = updateBotAI(snake, prevSnakes, foods, currentBounds);
             snake = { ...snake, target: aiDecision.target };
+
+            // Auto-settle for Bot
+            if (aiDecision.shouldSettleSentenceIndex !== undefined && snake.buildState.sentenceCandidates[0]) {
+              const res = settleSentence(snake, snake.buildState.sentenceCandidates[0], foods, currentBounds, theme);
+              snake = res.updatedSnake;
+              setFoods(res.updatedFoods);
+            } else if (aiDecision.shouldSettleWordIndex !== undefined && snake.buildState.candidates[0]) {
+              const res = settleWord(snake, snake.buildState.candidates[0], foods, currentBounds, theme);
+              snake = res.updatedSnake;
+              setFoods(res.updatedFoods);
+            }
           }
 
-          const movedSnake = updateSnakePosition(snake, deltaSeconds, bounds);
+          const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds);
 
           // Update buildState for held foods
           const wordSearch = searchCandidates(movedSnake.heldFoods, theme);
@@ -191,9 +278,9 @@ const App: React.FC = () => {
         return updated;
       });
 
-      // Resolve collisions
+      // 4. Resolve collisions
       setSnakes(prevSnakes => {
-        const colRes = checkAndResolveCollisions(prevSnakes, foods, bounds);
+        const colRes = checkAndResolveCollisions(prevSnakes, foods, currentBounds);
         setFoods(colRes.updatedFoods);
 
         if (colRes.events.spills.length > 0) {
@@ -231,7 +318,7 @@ const App: React.FC = () => {
     setFoods(settled.updatedFoods);
   };
 
-  // Settle Sentence (SENTENCE_READY) -> GOLD BODY & GOLD SAMURAI FLAG
+  // Settle Sentence (SENTENCE_READY)
   const handleSettleSentence = (candidate: CandidateSentence) => {
     const mySnakeId = `snake-${player.id}`;
     const mySnake = snakes[mySnakeId];
@@ -273,7 +360,12 @@ const App: React.FC = () => {
       {phase === GamePhase.LOBBY && (
         <LobbyScreen
           player={player}
-          players={[player]}
+          players={[player, ...INITIAL_BOTS.map(b => ({ id: b.id, name: b.name, color: b.color, isBot: true }))]}
+          selectedMode={mode}
+          onSelectMode={handleSelectMode}
+          onUpdatePlayer={handleUpdatePlayer}
+          lang={lang}
+          onSelectLanguage={setLang}
           lobbyEndsAt={lobbyEndsAt}
           onStart={startMatch}
           t={(k) => translations[lang]?.[k] || k}

@@ -124,6 +124,29 @@ export function renderGame(
       }
     }
 
+    // Draw Tail Target Emblem (Easy to see and click)
+    const tailPoint = path[path.length - 1];
+    if (tailPoint) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(tailPoint.x, tailPoint.y, 22, 0, Math.PI * 2);
+      ctx.fillStyle = snake.heldFoods.length > 0 ? '#ef4444' : '#64748b';
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Tail Target Icon / Text
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px "Inter", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(snake.heldFoods.length > 0 ? 'TAIL' : 'TAIL', tailPoint.x, tailPoint.y);
+      ctx.restore();
+    }
+
     // Draw Samurai Back Flags
     let flagNodeIndex = 6;
     for (const seg of snake.bodySegments) {
