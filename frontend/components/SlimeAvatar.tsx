@@ -25,7 +25,7 @@ const SlimeAvatar: React.FC<Props> = ({ color = '#38bdf8', colors, className = '
       />
     ))}
     <img
-      src="/assets/slime-mascot.png"
+      src="/assets/snake-mascot.png"
       alt={alt}
       draggable={false}
       className="w-full h-full object-contain animate-jelly"

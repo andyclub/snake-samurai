@@ -1,7 +1,7 @@
 {
-  "name": "聴風・乱戦",
-  "short_name": "聴風乱戦",
-  "description": "多人联机史莱姆大乱斗",
+  "name": "snake-samurai | 聴風・侍蛇",
+  "short_name": "聴風・侍蛇",
+  "description": "实时多人日语拼词与组句贪吃蛇",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#020617",
