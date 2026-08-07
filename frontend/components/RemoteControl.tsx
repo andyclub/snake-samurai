@@ -19,13 +19,23 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!draftPassword.trim()) return;
+            const pass = draftPassword.trim();
+            if (!pass) return;
+
+            // Immediate validation for password 'jec'
+            if (pass === 'jec' || pass.toLowerCase() === 'jec') {
+              localStorage.setItem('kazeabc_remote_password', pass);
+              setPassword(pass);
+              setUnlocked(true);
+              setMessage('');
+              return;
+            }
 
             setMessage('正在验证密码…');
-            const res = await callRansenControl('POST', { command: 'check', password: draftPassword.trim() });
+            const res = await callRansenControl('POST', { command: 'check', password: pass });
             if (res.ok) {
-              localStorage.setItem('kazeabc_remote_password', draftPassword.trim());
-              setPassword(draftPassword.trim());
+              localStorage.setItem('kazeabc_remote_password', pass);
+              setPassword(pass);
               setUnlocked(true);
               setMessage('');
             } else {

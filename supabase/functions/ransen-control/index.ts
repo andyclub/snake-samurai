@@ -2,12 +2,20 @@ import { createClient } from "npm:@supabase/supabase-js@2.110.5";
 
 const PASSWORD_HASH = "65d898bade021467123809feee735e340fae0786e316c5465329fd7db2446a54"; // sha256("jec")
 const SEAFOOD = ["海老", "帆立", "鮪", "真鯛", "烏賊", "蛸", "蟹", "鮭", "牡蠣", "雲丹", "甘海老", "鰹"];
-const allowedOrigins = new Set(["https://g.kazeabc.com", "http://localhost:5173"]);
+const allowedOrigins = new Set(["https://g.kazeabc.com", "https://h.kazeabc.com", "https://snake-samurai.vercel.app", "http://localhost:5173", "http://localhost:3000"]);
+
+const isAllowedOrigin = (origin: string | null): boolean => {
+  if (!origin) return true;
+  if (allowedOrigins.has(origin)) return true;
+  if (origin.endsWith('.kazeabc.com')) return true;
+  if (origin.endsWith('.vercel.app')) return true;
+  return false;
+};
+
 const cors = (origin: string | null) => ({
-  "Access-Control-Allow-Origin": origin && allowedOrigins.has(origin) ? origin : "https://g.kazeabc.com",
+  "Access-Control-Allow-Origin": origin && isAllowedOrigin(origin) ? origin : "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
-  "Vary": "Origin",
   "Content-Type": "application/json",
 });
 const sha256 = async (value: string) => {
@@ -36,7 +44,7 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const headers = cors(origin);
   if (req.method === "OPTIONS") return new Response("ok", { headers });
-  if (origin && !allowedOrigins.has(origin) && !origin.endsWith(".vercel.app")) {
+  if (origin && !isAllowedOrigin(origin)) {
     return new Response(JSON.stringify({ ok: false, message: "来源不允许" }), { status: 403, headers });
   }
 
