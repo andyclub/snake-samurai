@@ -18,6 +18,14 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 'd14', canonical: '警報', reading: 'けいほう', partsOfSpeech: ['noun'], meaning: 'Warning / Alarm', themes: ['disaster'], disasterRelated: true },
   { id: 'd15', canonical: '水', reading: 'みず', partsOfSpeech: ['noun'], meaning: 'Water', themes: ['disaster', 'life'], disasterRelated: true },
   { id: 'd16', canonical: '食料', reading: 'しょくりょう', partsOfSpeech: ['noun'], meaning: 'Food provisions', themes: ['disaster', 'life'], disasterRelated: true },
+  { id: 'd17', canonical: '安否', reading: 'あんぴ', partsOfSpeech: ['noun'], meaning: 'Safety status', themes: ['disaster'], disasterRelated: true },
+  { id: 'd18', canonical: '確認', reading: 'かくにん', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Confirmation', themes: ['disaster', 'work'], disasterRelated: true },
+  { id: 'd19', canonical: '給水所', reading: 'きゅうすいじょ', partsOfSpeech: ['noun'], meaning: 'Water supply point', themes: ['disaster'], disasterRelated: true },
+  { id: 'd20', canonical: '救助', reading: 'きゅうじょ', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Rescue', themes: ['disaster'], disasterRelated: true },
+  { id: 'd21', canonical: '余震', reading: 'よしん', partsOfSpeech: ['noun'], meaning: 'Aftershock', themes: ['disaster'], disasterRelated: true },
+  { id: 'd22', canonical: '防災', reading: 'ぼうさい', partsOfSpeech: ['noun'], meaning: 'Disaster prevention', themes: ['disaster'], disasterRelated: true },
+  { id: 'd23', canonical: '机', reading: 'つくえ', partsOfSpeech: ['noun'], meaning: 'Desk / Table', themes: ['disaster', 'study'], disasterRelated: true },
+  { id: 'd24', canonical: '下', reading: 'した', partsOfSpeech: ['noun'], meaning: 'Under / Below', themes: ['disaster', 'life'], disasterRelated: true },
 
   // 生活 (Life)
   { id: 'l1', canonical: '水', reading: 'みず', partsOfSpeech: ['noun'], meaning: 'Water', themes: ['life', 'disaster'], disasterRelated: true },
@@ -35,6 +43,9 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 'l13', canonical: '寝る', reading: 'ねる', partsOfSpeech: ['verb_v1'], meaning: 'Sleep', themes: ['life'], disasterRelated: false },
   { id: 'l14', canonical: '起きる', reading: 'おきる', partsOfSpeech: ['verb_v1'], meaning: 'Wake up', themes: ['life'], disasterRelated: false },
   { id: 'l15', canonical: '美味しい', reading: 'おいしい', partsOfSpeech: ['adj_i'], meaning: 'Delicious', themes: ['life'], disasterRelated: false },
+  { id: 'l16', canonical: '静か', reading: 'しずか', partsOfSpeech: ['adj_na'], meaning: 'Quiet', themes: ['life', 'study'], disasterRelated: false },
+  { id: 'l17', canonical: '歩く', reading: 'あるく', partsOfSpeech: ['verb_v5k'], meaning: 'Walk', themes: ['life'], disasterRelated: false },
+  { id: 'l18', canonical: '走る', reading: 'はしる', partsOfSpeech: ['verb_v5r'], meaning: 'Run', themes: ['life'], disasterRelated: false },
 
   // 学习 (Study)
   { id: 's1', canonical: '学校', reading: 'がっこう', partsOfSpeech: ['noun'], meaning: 'School', themes: ['study'], disasterRelated: false },
@@ -48,6 +59,8 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 's9', canonical: '書く', reading: 'かく', partsOfSpeech: ['verb_v5k'], meaning: 'Write', themes: ['study'], disasterRelated: false },
   { id: 's10', canonical: '読む', reading: 'よむ', partsOfSpeech: ['verb_v5m'], meaning: 'Read', themes: ['study'], disasterRelated: false },
   { id: 's11', canonical: '話す', reading: 'はなす', partsOfSpeech: ['verb_v5s'], meaning: 'Speak / Talk', themes: ['study', 'life'], disasterRelated: false },
+  { id: 's12', canonical: '図書館', reading: 'としょかん', partsOfSpeech: ['noun'], meaning: 'Library', themes: ['study'], disasterRelated: false },
+  { id: 's13', canonical: '質問', reading: 'しつもん', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Question', themes: ['study'], disasterRelated: false },
 
   // 工作 (Work)
   { id: 'w1', canonical: '会社', reading: 'かいしゃ', partsOfSpeech: ['noun'], meaning: 'Company / Office', themes: ['work'], disasterRelated: false },
@@ -57,6 +70,7 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 'w5', canonical: '電話', reading: 'でんわ', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Telephone', themes: ['work', 'life'], disasterRelated: false },
   { id: 'w6', canonical: '作る', reading: 'つくる', partsOfSpeech: ['verb_v5r'], meaning: 'Make / Produce', themes: ['work', 'life'], disasterRelated: false },
   { id: 'w7', canonical: '忙しい', reading: 'いそがしい', partsOfSpeech: ['adj_i'], meaning: 'Busy', themes: ['work'], disasterRelated: false },
+  { id: 'w8', canonical: '準備', reading: 'じゅんび', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Preparation', themes: ['work', 'disaster'], disasterRelated: true },
 
   // 旅行 (Travel)
   { id: 't1', canonical: '旅行', reading: 'りょこう', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Travel', themes: ['travel'], disasterRelated: false },
@@ -71,6 +85,9 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 't10', canonical: '行く', reading: 'いく', partsOfSpeech: ['verb_v5k'], meaning: 'Go', themes: ['travel', 'life'], disasterRelated: false },
   { id: 't11', canonical: '来る', reading: 'くる', partsOfSpeech: ['verb_vk'], meaning: 'Come', themes: ['travel', 'life'], disasterRelated: false },
   { id: 't12', canonical: '見る', reading: 'みる', partsOfSpeech: ['verb_v1'], meaning: 'See / Watch', themes: ['travel', 'life'], disasterRelated: false },
+  { id: 't13', canonical: '新幹線', reading: 'しんかんせん', partsOfSpeech: ['noun'], meaning: 'Bullet train', themes: ['travel'], disasterRelated: false },
+  { id: 't14', canonical: '東京', reading: 'とうきょう', partsOfSpeech: ['noun'], meaning: 'Tokyo', themes: ['travel'], disasterRelated: false },
+  { id: 't15', canonical: '京都', reading: 'きょうと', partsOfSpeech: ['noun'], meaning: 'Kyoto', themes: ['travel', 'culture'], disasterRelated: false },
 
   // 文化 (Culture)
   { id: 'c1', canonical: '桜', reading: 'さくら', partsOfSpeech: ['noun'], meaning: 'Cherry blossom', themes: ['culture', 'travel'], disasterRelated: false },
@@ -83,6 +100,8 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 'c8', canonical: '侍', reading: 'さむらい', partsOfSpeech: ['noun'], meaning: 'Samurai', themes: ['culture'], disasterRelated: false },
   { id: 'c9', canonical: '蛇', reading: 'へび', partsOfSpeech: ['noun'], meaning: 'Snake', themes: ['culture'], disasterRelated: false },
   { id: 'c10', canonical: '風', reading: 'かぜ', partsOfSpeech: ['noun'], meaning: 'Wind', themes: ['culture', 'life'], disasterRelated: false },
+  { id: 'c11', canonical: '撮る', reading: 'とる', partsOfSpeech: ['verb_v5r'], meaning: 'Take (photo)', themes: ['culture', 'travel'], disasterRelated: false },
+  { id: 'c12', canonical: '着る', reading: 'きる', partsOfSpeech: ['verb_v1'], meaning: 'Wear (clothes)', themes: ['culture', 'life'], disasterRelated: false },
 
   // 助词与连词 (Particles & Connectives)
   { id: 'p1', canonical: 'は', reading: 'は', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },

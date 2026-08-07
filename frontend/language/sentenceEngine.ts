@@ -44,6 +44,30 @@ const SENTENCE_RULES: SentenceRule[] = [
     themes: ['disaster', 'free'],
     disasterRelated: true
   },
+  {
+    id: 'sen_disaster_5',
+    regex: /^(地震|火災)が起きたら(、)?(机の下|安全な場所)(へ|に)(入る|逃げる)$/,
+    template: (m) => `${m[1]}が起きたら、${m[3]}${m[4]}${m[5]}。`,
+    punctuations: ['、', '。'],
+    themes: ['disaster', 'free'],
+    disasterRelated: true
+  },
+  {
+    id: 'sen_disaster_6',
+    regex: /^(家族|友達)と(安否)(を)(確認する)$/,
+    template: (m) => `${m[1]}と${m[2]}${m[3]}${m[4]}。`,
+    punctuations: ['。'],
+    themes: ['disaster', 'free'],
+    disasterRelated: true
+  },
+  {
+    id: 'sen_disaster_7',
+    regex: /^(給水所)(で)(水)(を)(もらう|受ける)$/,
+    template: (m) => `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}。`,
+    punctuations: ['。'],
+    themes: ['disaster', 'free'],
+    disasterRelated: true
+  },
 
   // 自由/主题通用句子 (General / Theme Sentences)
   {
@@ -87,6 +111,34 @@ const SENTENCE_RULES: SentenceRule[] = [
     template: () => `何ですか？`,
     punctuations: ['？'],
     themes: ['study', 'life', 'free']
+  },
+  {
+    id: 'sen_gen_7',
+    regex: /^(新幹線|電車|バス)(で)(東京|京都|会社|学校)(へ|に)(行く)$/,
+    template: (m) => `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}。`,
+    punctuations: ['。'],
+    themes: ['travel', 'work', 'free']
+  },
+  {
+    id: 'sen_gen_8',
+    regex: /^(図書館|学校|家)(で)(静かに)(勉強する|読む)$/,
+    template: (m) => `${m[1]}${m[2]}${m[3]}${m[4]}。`,
+    punctuations: ['。'],
+    themes: ['study', 'free']
+  },
+  {
+    id: 'sen_gen_9',
+    regex: /^(神社|寺|海)(で)(写真)(を)(撮る|見る)$/,
+    template: (m) => `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}。`,
+    punctuations: ['。'],
+    themes: ['culture', 'travel', 'free']
+  },
+  {
+    id: 'sen_gen_10',
+    regex: /^(京都|日本)(で)(着物|寿司)(を)(着る|食べる)$/,
+    template: (m) => `${m[1]}${m[2]}${m[3]}${m[4]}${m[5]}。`,
+    punctuations: ['。'],
+    themes: ['culture', 'travel', 'free']
   }
 ];
 
