@@ -88,6 +88,7 @@ export function renderGame(
     for (let i = path.length - 1; i >= 0; i--) {
       const pt = path[i];
       const isTail = (i === path.length - 1);
+      const isHead = (i === 0);
 
       // Determine segment color
       let segColor = snake.baseColor;
