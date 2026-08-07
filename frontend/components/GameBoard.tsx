@@ -49,52 +49,80 @@ export const GameBoard: React.FC<Props> = ({
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
-
-  const mySnake = snakes[`snake-${player.id}`] || Object.values(snakes).find(s => s.playerId === player.id);
+  const isInteractingRef = useRef(false);
 
   // Keep live values in refs for decoupled 60fps canvas rendering
   const snakesRef = useRef(snakes);
   const foodsRef = useRef(foods);
   const boundsRef = useRef(bounds);
-  const mySnakeRef = useRef(mySnake);
   const clickEffectRef = useRef(clickEffect);
 
   snakesRef.current = snakes;
   foodsRef.current = foods;
   boundsRef.current = bounds;
-  mySnakeRef.current = mySnake;
   clickEffectRef.current = clickEffect;
 
-  // Pointer interaction
-  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    const currentMySnake = mySnakeRef.current;
-    if (!canvas || !currentMySnake) return;
+  // Helper to dynamically get current local player snake
+  const getMySnake = () => {
+    const all = snakesRef.current;
+    return all[`snake-${player.id}`] || Object.values(all).find(s => s.playerId === player.id) || Object.values(all)[0];
+  };
 
-    const rect = canvas.getBoundingClientRect();
-    const touchX = e.clientX - rect.left;
-    const touchY = e.clientY - rect.top;
+  // Convert screen coordinates to world coordinates & trigger target move
+  const updatePointerTarget = (touchX: number, touchY: number, isInitialTap = false) => {
+    const canvas = canvasRef.current;
+    const currentMySnake = getMySnake();
+    if (!canvas || !currentMySnake) return;
 
     const cameraZoom = calculateCameraZoom(currentMySnake.totalLength);
     const cameraX = currentMySnake.head.x;
     const cameraY = currentMySnake.head.y;
 
-    // Convert screen coordinates to world coordinates
     const worldX = (touchX - canvas.width / 2) / cameraZoom + cameraX;
     const worldY = (touchY - canvas.height / 2) / cameraZoom + cameraY;
 
-    // Check if tapping player's own snake tail tip to spill foods
-    const tailPt = currentMySnake.bodyPath[currentMySnake.bodyPath.length - 1];
-    if (tailPt && Math.hypot(worldX - tailPt.x, worldY - tailPt.y) < 40 && currentMySnake.heldFoods.length > 0) {
-      onSpillTail();
+    if (isInitialTap) {
+      const tailPt = currentMySnake.bodyPath[currentMySnake.bodyPath.length - 1];
+      if (tailPt && Math.hypot(worldX - tailPt.x, worldY - tailPt.y) < 40 && currentMySnake.heldFoods.length > 0) {
+        onSpillTail();
+        setClickEffect({ x: worldX, y: worldY, time: Date.now() });
+        audio.playTailSpill();
+        return;
+      }
       setClickEffect({ x: worldX, y: worldY, time: Date.now() });
-      audio.playTailSpill();
-      return;
     }
 
     onPointerTarget(worldX, worldY);
-    setClickEffect({ x: worldX, y: worldY, time: Date.now() });
-    audio.playPickup();
+  };
+
+  // Pointer Down (Mouse click or initial touch down)
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    isInteractingRef.current = true;
+    const rect = canvas.getBoundingClientRect();
+    updatePointerTarget(e.clientX - rect.left, e.clientY - rect.top, true);
+  };
+
+  // Pointer Move (Mouse drag or finger drag)
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isInteractingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    updatePointerTarget(e.clientX - rect.left, e.clientY - rect.top, false);
+  };
+
+  const handlePointerUp = () => {
+    isInteractingRef.current = false;
+  };
+
+  // Touch Move for Mobile Web (Safari / Chrome touch drag)
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas || e.touches.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    updatePointerTarget(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top, false);
   };
 
   // Continuous smooth 60fps Canvas Render Loop (Never unmounts or restarts on React re-renders)
@@ -113,7 +141,7 @@ export const GameBoard: React.FC<Props> = ({
             canvas.height = height;
           }
 
-          const currentSnake = mySnakeRef.current;
+          const currentSnake = getMySnake();
           const zoom = calculateCameraZoom(currentSnake ? currentSnake.totalLength : 3);
           renderGame(
             ctx,
@@ -135,22 +163,34 @@ export const GameBoard: React.FC<Props> = ({
     return () => cancelAnimationFrame(animationFrameId);
   }, []); // Run ONCE on mount!
 
-  // Evaluate candidate words / sentences
+  const mySnake = getMySnake();
   const heldFoods = mySnake?.heldFoods || [];
   const wordSearch = searchCandidates(heldFoods, theme);
   const sentenceAnalysis = analyzeSentenceBuilding(heldFoods, theme);
 
-  // Leaderboard sorting
   const leaderboard = Object.values(snakes)
     .filter(s => s.connected)
     .sort((a, b) => b.totalLength - a.totalLength);
 
   return (
     <div className="relative w-screen h-[100dvh] overflow-hidden bg-slate-950 select-none">
-      {/* Canvas */}
+      {/* Canvas with Mouse & Touch Event Handlers */}
       <canvas
         ref={canvasRef}
         onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onTouchStart={(e) => {
+          if (e.touches.length > 0) {
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const rect = canvas.getBoundingClientRect();
+              updatePointerTarget(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top, true);
+            }
+          }
+        }}
+        onTouchMove={handleTouchMove}
         className="w-full h-full cursor-crosshair touch-none"
       />
 
@@ -201,18 +241,19 @@ export const GameBoard: React.FC<Props> = ({
             <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
-          {/* Language Selector Dropdown */}
+          {/* Language Switcher Dropdown */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowLangMenu(!showLangMenu)}
-              className="touch-manipulation flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-xs font-bold text-white shadow-xl transition-all active:scale-95"
+              className="touch-manipulation flex items-center gap-1 px-2.5 py-2 sm:px-3 sm:py-2 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-xs font-bold shadow-xl active:scale-95"
             >
-              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400" />
-              <span className="uppercase text-[11px] sm:text-xs">{lang}</span>
+              <Globe className="w-4 h-4 text-cyan-400" />
+              <span className="uppercase">{lang}</span>
             </button>
+
             {showLangMenu && (
-              <div className="absolute right-0 mt-2 w-36 bg-slate-900 border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-40">
+              <div className="absolute right-0 mt-2 w-32 bg-slate-900/95 border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-30 backdrop-blur-xl">
                 {[
                   { code: 'zh-CN', label: '简体中文' },
                   { code: 'ja', label: '日本語' },
@@ -227,7 +268,7 @@ export const GameBoard: React.FC<Props> = ({
                       onSelectLanguage(item.code as Language);
                       setShowLangMenu(false);
                     }}
-                    className={`touch-manipulation w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors ${
+                    className={`touch-manipulation w-full text-left px-3 py-2 text-xs font-bold hover:bg-slate-800 transition-colors ${
                       lang === item.code ? 'text-cyan-400 bg-cyan-950/40' : 'text-slate-300'
                     }`}
                   >
@@ -240,49 +281,60 @@ export const GameBoard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Floating Candidate Prompt Bubble (Positioned fixed directly above Player Snake Head at Screen Center) */}
-      <div className="absolute top-[calc(50%-85px)] left-1/2 -translate-x-1/2 -translate-y-full z-30 flex flex-col items-center gap-3 max-w-md w-full px-4 pointer-events-auto">
-        {/* Candidate Sentence Bubbles (GOLD ONLY) */}
-        {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates.map(candidate => (
-          <button
-            key={candidate.id}
-            type="button"
-            onClick={() => {
-              audio.playSentenceCompleted();
-              onSettleSentence(candidate);
-            }}
-            className="touch-manipulation w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 border-2 border-yellow-200 text-slate-950 font-black py-3 px-6 rounded-2xl shadow-2xl shadow-yellow-500/50 hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
-          >
-            <span className="text-lg tracking-wide">{candidate.text}</span>
-            <span className="text-xs bg-black text-yellow-300 font-extrabold px-3 py-1 rounded-full">
-              金旗句 (+{candidate.totalLengthBonus})
-            </span>
-          </button>
-        ))}
+      {/* Floating Word / Sentence Candidate Bubble Anchor */}
+      {mySnake && (wordSearch.status === 'WORD_READY' || sentenceAnalysis.isSentenceReady) && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-28 pointer-events-auto z-30 flex flex-col items-center gap-2">
+          {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates[0] && (
+            <button
+              type="button"
+              onClick={() => onSettleSentence(sentenceAnalysis.candidates[0])}
+              className="touch-manipulation animate-bounce px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-sm rounded-full shadow-2xl border-2 border-white flex items-center gap-2 cursor-pointer active:scale-95"
+            >
+              <Sparkles className="w-4 h-4 fill-current" />
+              <span>【句】{sentenceAnalysis.candidates[0].text} (+{sentenceAnalysis.candidates[0].score}分)</span>
+            </button>
+          )}
 
-        {/* Candidate Word Bubbles (NO GOLD) */}
-        {!sentenceAnalysis.isSentenceReady && wordSearch.status === 'WORD_READY' && wordSearch.candidates.map(candidate => (
-          <button
-            key={candidate.id}
-            type="button"
-            onClick={() => {
-              audio.playWordCompleted();
-              onSettleWord(candidate);
-            }}
-            className="touch-manipulation w-full bg-slate-900/95 border-2 border-cyan-400 backdrop-blur-xl text-cyan-300 font-black py-3 px-6 rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
-          >
-            <div className="text-left">
-              <div className="text-lg text-white font-extrabold">{candidate.canonical}</div>
-              <div className="text-xs text-cyan-400">{candidate.reading} · {candidate.meaning}</div>
+          {wordSearch.status === 'WORD_READY' && wordSearch.candidates[0] && (
+            <button
+              type="button"
+              onClick={() => onSettleWord(wordSearch.candidates[0])}
+              className="touch-manipulation px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs rounded-full shadow-xl border border-white/40 flex items-center gap-1.5 cursor-pointer active:scale-95"
+            >
+              <span>【词】{wordSearch.candidates[0].canonical} ({wordSearch.candidates[0].meaning})</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Leaderboard Panel */}
+      <div className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 sm:left-4 bg-slate-900/80 border border-white/10 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-2xl z-20 max-w-[170px] sm:max-w-[200px] pointer-events-none">
+        <div className="flex items-center gap-1.5 text-xs font-black text-amber-400 border-b border-white/10 pb-1.5 mb-2">
+          <Trophy className="w-4 h-4" /> {t('leaderboard.title')}
+        </div>
+        <div className="space-y-1.5 text-[11px] font-bold">
+          {leaderboard.slice(0, 5).map((s, idx) => (
+            <div
+              key={s.id}
+              className={`flex items-center justify-between gap-2 px-2 py-1 rounded-xl ${
+                s.id === mySnake?.id ? 'bg-cyan-950/80 border border-cyan-500/40 text-cyan-300' : 'text-slate-300'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="text-[9px] text-slate-400 font-mono">#{idx + 1}</span>
+                <span
+                  className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
+                  style={{ backgroundColor: s.baseColor }}
+                />
+                <span className="truncate">{s.nickname}</span>
+              </div>
+              <span className="font-mono text-slate-200">{s.totalLength}节</span>
             </div>
-            <span className="text-xs bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-extrabold px-3 py-1 rounded-full">
-              拼成! (+{candidate.readingLength})
-            </span>
-          </button>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* FAQ / Rules Modal */}
+      {/* Modals */}
       {showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
@@ -293,12 +345,10 @@ export const GameBoard: React.FC<Props> = ({
             >
               <X className="w-5 h-5" />
             </button>
-
             <div className="flex items-center gap-2 border-b border-white/10 pb-3">
               <HelpCircle className="w-6 h-6 text-amber-400" />
               <h3 className="text-lg font-black text-white">{t('rules.title')}</h3>
             </div>
-
             <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
               <p>{t('rules.1')}</p>
               <p>{t('rules.2')}</p>
@@ -306,11 +356,10 @@ export const GameBoard: React.FC<Props> = ({
               <p>{t('rules.4')}</p>
               <p>{t('rules.5')}</p>
             </div>
-
             <button
               type="button"
               onClick={() => setShowRulesModal(false)}
-              className="touch-manipulation w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+              className="touch-manipulation w-full py-3 bg-cyan-500 text-slate-950 font-black rounded-xl"
             >
               {t('rules.close')}
             </button>
@@ -318,10 +367,9 @@ export const GameBoard: React.FC<Props> = ({
         </div>
       )}
 
-      {/* QR Code Invitation Modal */}
       {showQRModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl relative">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-8 max-w-sm w-full text-center space-y-5 shadow-2xl relative">
             <button
               type="button"
               onClick={() => setShowQRModal(false)}
@@ -329,36 +377,20 @@ export const GameBoard: React.FC<Props> = ({
             >
               <X className="w-5 h-5" />
             </button>
-
             <div className="flex items-center justify-center gap-2">
               <QrCode className="w-6 h-6 text-cyan-400" />
               <h3 className="text-lg font-black text-white">游戏邀请二维码</h3>
             </div>
-
-            <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 inline-block shadow-inner">
-              <img
-                src={QR_IMAGE_URL}
-                alt="Invite QR Code"
-                className="w-44 h-44 rounded-xl object-contain"
-              />
+            <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 inline-block">
+              <img src={QR_IMAGE_URL} alt="QR Code" className="w-48 h-48 rounded-xl object-contain" />
             </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-slate-400">手机扫码或浏览器输入网址加入：</p>
-              <a
-                href={INVITE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="text-cyan-400 font-mono font-bold hover:underline text-sm block"
-              >
-                {INVITE_URL.replace('https://', '')}
-              </a>
-            </div>
-
+            <p className="text-xs text-slate-400">
+              网址：<a href={INVITE_URL} target="_blank" rel="noreferrer" className="text-cyan-400 font-mono font-bold hover:underline">h.kazeabc.com</a>
+            </p>
             <button
               type="button"
               onClick={() => setShowQRModal(false)}
-              className="touch-manipulation w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+              className="touch-manipulation w-full py-3 bg-cyan-500 text-slate-950 font-black rounded-xl"
             >
               {t('rules.close')}
             </button>
