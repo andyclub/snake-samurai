@@ -12,11 +12,11 @@ const getCommitCount = () => {
       cwd: repoRoot,
       encoding: 'utf8',
     }).trim());
-    if (!Number.isInteger(count) || count < 1) throw new Error('Invalid Git commit count');
-    return count;
+    if (Number.isInteger(count) && count >= 1) return count;
   } catch (error) {
-    throw new Error(`Unable to determine repository commit count: ${error instanceof Error ? error.message : String(error)}`);
+    // Graceful fallback for environments like Vercel build where .git is excluded
   }
+  return 100;
 };
 
 const getBuildDate = () => {
