@@ -1,0 +1,98 @@
+import { Lexeme } from './types';
+
+export const LEXICON_DATA: Lexeme[] = [
+  // 防灾专场 (Disaster & Safety)
+  { id: 'd1', canonical: '地震', reading: 'じしん', partsOfSpeech: ['noun'], meaning: 'Earthquake', themes: ['disaster'], disasterRelated: true },
+  { id: 'd2', canonical: '津波', reading: 'つなみ', partsOfSpeech: ['noun'], meaning: 'Tsunami', themes: ['disaster'], disasterRelated: true },
+  { id: 'd3', canonical: '避難所', reading: 'ひなんじょ', partsOfSpeech: ['noun'], meaning: 'Evacuation shelter', themes: ['disaster'], disasterRelated: true },
+  { id: 'd4', canonical: '避難', reading: 'ひなん', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Evacuation', themes: ['disaster'], disasterRelated: true },
+  { id: 'd5', canonical: '非常口', reading: 'ひじょうぐち', partsOfSpeech: ['noun'], meaning: 'Emergency exit', themes: ['disaster'], disasterRelated: true },
+  { id: 'd6', canonical: '火災', reading: 'かさい', partsOfSpeech: ['noun'], meaning: 'Fire disaster', themes: ['disaster'], disasterRelated: true },
+  { id: 'd7', canonical: '安全', reading: 'あんぜん', partsOfSpeech: ['noun', 'adj_na'], meaning: 'Safety', themes: ['disaster', 'life'], disasterRelated: true },
+  { id: 'd8', canonical: '危険', reading: 'きけん', partsOfSpeech: ['noun', 'adj_na'], meaning: 'Danger', themes: ['disaster'], disasterRelated: true },
+  { id: 'd9', canonical: '高台', reading: 'たかだい', partsOfSpeech: ['noun'], meaning: 'High ground', themes: ['disaster'], disasterRelated: true },
+  { id: 'd10', canonical: '高い場所', reading: 'たかいばしょ', partsOfSpeech: ['noun'], meaning: 'High place', themes: ['disaster'], disasterRelated: true },
+  { id: 'd11', canonical: '逃げる', reading: 'にげる', partsOfSpeech: ['verb_v1'], meaning: 'Escape / Run away', themes: ['disaster'], disasterRelated: true },
+  { id: 'd12', canonical: '助ける', reading: 'たすける', partsOfSpeech: ['verb_v1'], meaning: 'Help / Rescue', themes: ['disaster', 'life'], disasterRelated: true },
+  { id: 'd13', canonical: '守る', reading: 'まもる', partsOfSpeech: ['verb_v5m'], meaning: 'Protect / Guard', themes: ['disaster', 'life'], disasterRelated: true },
+  { id: 'd14', canonical: '警報', reading: 'けいほう', partsOfSpeech: ['noun'], meaning: 'Warning / Alarm', themes: ['disaster'], disasterRelated: true },
+  { id: 'd15', canonical: '水', reading: 'みず', partsOfSpeech: ['noun'], meaning: 'Water', themes: ['disaster', 'life'], disasterRelated: true },
+  { id: 'd16', canonical: '食料', reading: 'しょくりょう', partsOfSpeech: ['noun'], meaning: 'Food provisions', themes: ['disaster', 'life'], disasterRelated: true },
+
+  // 生活 (Life)
+  { id: 'l1', canonical: '水', reading: 'みず', partsOfSpeech: ['noun'], meaning: 'Water', themes: ['life', 'disaster'], disasterRelated: true },
+  { id: 'l2', canonical: '雨', reading: 'あめ', partsOfSpeech: ['noun'], meaning: 'Rain', themes: ['life'], disasterRelated: false },
+  { id: 'l3', canonical: '飴', reading: 'あめ', partsOfSpeech: ['noun'], meaning: 'Candy', themes: ['life'], disasterRelated: false },
+  { id: 'l4', canonical: '家', reading: 'いえ', partsOfSpeech: ['noun'], meaning: 'House / Home', themes: ['life'], disasterRelated: false },
+  { id: 'l5', canonical: '猫', reading: 'ねこ', partsOfSpeech: ['noun'], meaning: 'Cat', themes: ['life'], disasterRelated: false },
+  { id: 'l6', canonical: '犬', reading: 'いぬ', partsOfSpeech: ['noun'], meaning: 'Dog', themes: ['life'], disasterRelated: false },
+  { id: 'l7', canonical: '朝', reading: 'あさ', partsOfSpeech: ['noun'], meaning: 'Morning', themes: ['life'], disasterRelated: false },
+  { id: 'l8', canonical: '夜', reading: 'よる', partsOfSpeech: ['noun'], meaning: 'Night', themes: ['life'], disasterRelated: false },
+  { id: 'l9', canonical: '友達', reading: 'ともだち', partsOfSpeech: ['noun'], meaning: 'Friend', themes: ['life', 'study'], disasterRelated: false },
+  { id: 'l10', canonical: '家族', reading: 'かぞく', partsOfSpeech: ['noun'], meaning: 'Family', themes: ['life'], disasterRelated: false },
+  { id: 'l11', canonical: '食べる', reading: 'たべる', partsOfSpeech: ['verb_v1'], meaning: 'Eat', themes: ['life'], disasterRelated: false },
+  { id: 'l12', canonical: '飲む', reading: 'のむ', partsOfSpeech: ['verb_v5m'], meaning: 'Drink', themes: ['life'], disasterRelated: false },
+  { id: 'l13', canonical: '寝る', reading: 'ねる', partsOfSpeech: ['verb_v1'], meaning: 'Sleep', themes: ['life'], disasterRelated: false },
+  { id: 'l14', canonical: '起きる', reading: 'おきる', partsOfSpeech: ['verb_v1'], meaning: 'Wake up', themes: ['life'], disasterRelated: false },
+  { id: 'l15', canonical: '美味しい', reading: 'おいしい', partsOfSpeech: ['adj_i'], meaning: 'Delicious', themes: ['life'], disasterRelated: false },
+
+  // 学习 (Study)
+  { id: 's1', canonical: '学校', reading: 'がっこう', partsOfSpeech: ['noun'], meaning: 'School', themes: ['study'], disasterRelated: false },
+  { id: 's2', canonical: '本', reading: 'ほん', partsOfSpeech: ['noun'], meaning: 'Book', themes: ['study'], disasterRelated: false },
+  { id: 's3', canonical: '勉強', reading: 'べんきょう', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Study', themes: ['study'], disasterRelated: false },
+  { id: 's4', canonical: '日本語', reading: 'にほんご', partsOfSpeech: ['noun'], meaning: 'Japanese language', themes: ['study', 'culture'], disasterRelated: false },
+  { id: 's5', canonical: '先生', reading: 'せんせい', partsOfSpeech: ['noun'], meaning: 'Teacher', themes: ['study'], disasterRelated: false },
+  { id: 's6', canonical: '学生', reading: 'がくせい', partsOfSpeech: ['noun'], meaning: 'Student', themes: ['study'], disasterRelated: false },
+  { id: 's7', canonical: '宿題', reading: 'しゅくだい', partsOfSpeech: ['noun'], meaning: 'Homework', themes: ['study'], disasterRelated: false },
+  { id: 's8', canonical: '辞書', reading: 'じしょ', partsOfSpeech: ['noun'], meaning: 'Dictionary', themes: ['study'], disasterRelated: false },
+  { id: 's9', canonical: '書く', reading: 'かく', partsOfSpeech: ['verb_v5k'], meaning: 'Write', themes: ['study'], disasterRelated: false },
+  { id: 's10', canonical: '読む', reading: 'よむ', partsOfSpeech: ['verb_v5m'], meaning: 'Read', themes: ['study'], disasterRelated: false },
+  { id: 's11', canonical: '話す', reading: 'はなす', partsOfSpeech: ['verb_v5s'], meaning: 'Speak / Talk', themes: ['study', 'life'], disasterRelated: false },
+
+  // 工作 (Work)
+  { id: 'w1', canonical: '会社', reading: 'かいしゃ', partsOfSpeech: ['noun'], meaning: 'Company / Office', themes: ['work'], disasterRelated: false },
+  { id: 'w2', canonical: '仕事', reading: 'しごと', partsOfSpeech: ['noun'], meaning: 'Work / Job', themes: ['work'], disasterRelated: false },
+  { id: 'w3', canonical: '会議', reading: 'かいぎ', partsOfSpeech: ['noun'], meaning: 'Meeting', themes: ['work'], disasterRelated: false },
+  { id: 'w4', canonical: '名刺', reading: 'めいし', partsOfSpeech: ['noun'], meaning: 'Business card', themes: ['work'], disasterRelated: false },
+  { id: 'w5', canonical: '電話', reading: 'でんわ', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Telephone', themes: ['work', 'life'], disasterRelated: false },
+  { id: 'w6', canonical: '作る', reading: 'つくる', partsOfSpeech: ['verb_v5r'], meaning: 'Make / Produce', themes: ['work', 'life'], disasterRelated: false },
+  { id: 'w7', canonical: '忙しい', reading: 'いそがしい', partsOfSpeech: ['adj_i'], meaning: 'Busy', themes: ['work'], disasterRelated: false },
+
+  // 旅行 (Travel)
+  { id: 't1', canonical: '旅行', reading: 'りょこう', partsOfSpeech: ['noun', 'suru_verb'], meaning: 'Travel', themes: ['travel'], disasterRelated: false },
+  { id: 't2', canonical: 'ホテル', reading: 'ほてる', partsOfSpeech: ['noun'], meaning: 'Hotel', themes: ['travel'], disasterRelated: false },
+  { id: 't3', canonical: '駅', reading: 'えき', partsOfSpeech: ['noun'], meaning: 'Station', themes: ['travel'], disasterRelated: false },
+  { id: 't4', canonical: '電車', reading: 'でんしゃ', partsOfSpeech: ['noun'], meaning: 'Train', themes: ['travel'], disasterRelated: false },
+  { id: 't5', canonical: '飛行機', reading: 'ひこうき', partsOfSpeech: ['noun'], meaning: 'Airplane', themes: ['travel'], disasterRelated: false },
+  { id: 't6', canonical: '切符', reading: 'きっぷ', partsOfSpeech: ['noun'], meaning: 'Ticket', themes: ['travel'], disasterRelated: false },
+  { id: 't7', canonical: '海', reading: 'うみ', partsOfSpeech: ['noun'], meaning: 'Sea / Ocean', themes: ['travel', 'life'], disasterRelated: false },
+  { id: 't8', canonical: '山', reading: 'やま', partsOfSpeech: ['noun'], meaning: 'Mountain', themes: ['travel', 'life'], disasterRelated: false },
+  { id: 't9', canonical: '予約する', reading: 'よやくする', partsOfSpeech: ['suru_verb'], meaning: 'Reserve / Book', themes: ['travel', 'work'], disasterRelated: false },
+  { id: 't10', canonical: '行く', reading: 'いく', partsOfSpeech: ['verb_v5k'], meaning: 'Go', themes: ['travel', 'life'], disasterRelated: false },
+  { id: 't11', canonical: '来る', reading: 'くる', partsOfSpeech: ['verb_vk'], meaning: 'Come', themes: ['travel', 'life'], disasterRelated: false },
+  { id: 't12', canonical: '見る', reading: 'みる', partsOfSpeech: ['verb_v1'], meaning: 'See / Watch', themes: ['travel', 'life'], disasterRelated: false },
+
+  // 文化 (Culture)
+  { id: 'c1', canonical: '桜', reading: 'さくら', partsOfSpeech: ['noun'], meaning: 'Cherry blossom', themes: ['culture', 'travel'], disasterRelated: false },
+  { id: 'c2', canonical: '寿司', reading: 'すし', partsOfSpeech: ['noun'], meaning: 'Sushi', themes: ['culture', 'life'], disasterRelated: false },
+  { id: 'c3', canonical: '抹茶', reading: 'まっちゃ', partsOfSpeech: ['noun'], meaning: 'Matcha', themes: ['culture'], disasterRelated: false },
+  { id: 'c4', canonical: '着物', reading: 'きもの', partsOfSpeech: ['noun'], meaning: 'Kimono', themes: ['culture'], disasterRelated: false },
+  { id: 'c5', canonical: '写真', reading: 'しゃしん', partsOfSpeech: ['noun'], meaning: 'Photograph', themes: ['culture', 'travel', 'life'], disasterRelated: false },
+  { id: 'c6', canonical: '寺', reading: 'てら', partsOfSpeech: ['noun'], meaning: 'Temple', themes: ['culture', 'travel'], disasterRelated: false },
+  { id: 'c7', canonical: '神社', reading: 'じんじゃ', partsOfSpeech: ['noun'], meaning: 'Shrine', themes: ['culture', 'travel'], disasterRelated: false },
+  { id: 'c8', canonical: '侍', reading: 'さむらい', partsOfSpeech: ['noun'], meaning: 'Samurai', themes: ['culture'], disasterRelated: false },
+  { id: 'c9', canonical: '蛇', reading: 'へび', partsOfSpeech: ['noun'], meaning: 'Snake', themes: ['culture'], disasterRelated: false },
+  { id: 'c10', canonical: '風', reading: 'かぜ', partsOfSpeech: ['noun'], meaning: 'Wind', themes: ['culture', 'life'], disasterRelated: false },
+
+  // 助词与连词 (Particles & Connectives)
+  { id: 'p1', canonical: 'は', reading: 'は', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p2', canonical: 'が', reading: 'が', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p3', canonical: 'を', reading: 'を', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p4', canonical: 'へ', reading: 'へ', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p5', canonical: 'に', reading: 'に', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p6', canonical: 'で', reading: 'で', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p7', canonical: 'と', reading: 'と', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p8', canonical: 'の', reading: 'の', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p9', canonical: 'も', reading: 'も', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true },
+  { id: 'p10', canonical: 'から', reading: 'から', partsOfSpeech: ['particle'], themes: ['free', 'life', 'study', 'work', 'travel', 'culture', 'disaster'], disasterRelated: true }
+];

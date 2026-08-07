@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     const { data, error } = await admin.from("ransen_rooms").select("phase,lobby_ends_at,arena_name,snapshot,updated_at").eq("id", requestedRoomId).maybeSingle();
     if (error) return new Response(JSON.stringify({ ok: false, message: error.message }), { status: 500, headers });
     const snapshot = sanitizeSnapshot(data?.snapshot || { slimes: [], encounters: [] });
-    const expired = data?.phase === "PLAYING" && typeof snapshot.startedAt === "number" && Date.now() >= snapshot.startedAt + 300_000;
+    const expired = data?.phase === "PLAYING" && typeof snapshot.startedAt === "number" && Date.now() >= snapshot.startedAt + 120_000;
     const phase = expired ? "THEATER" : data?.phase || "OFF";
     if (expired) {
       const { error: expiryError } = await admin.from("ransen_rooms").update({
@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     if (readError) return new Response(JSON.stringify({ ok: false, message: readError.message }), { status: 500, headers });
     const deadline = room?.lobby_ends_at ? Date.parse(room.lobby_ends_at) : Number.NaN;
     const mayStart = room?.phase === "LOBBY" && Number.isFinite(deadline) && Date.now() >= deadline - 500;
-    const expired = Date.now() >= snapshot.startedAt + 300_000;
+    const expired = Date.now() >= snapshot.startedAt + 120_000;
     const targetPhase = body.phase === "THEATER" || expired ? "THEATER" : "PLAYING";
     const storedStartedAt = typeof room?.snapshot?.startedAt === "number" ? room.snapshot.startedAt : null;
     const sameRound = storedStartedAt === null || Math.abs(storedStartedAt - snapshot.startedAt) <= 15_000;

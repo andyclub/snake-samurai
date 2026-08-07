@@ -129,6 +129,76 @@ class AudioManager {
     });
   }
 
+  playPickup() {
+    this.init();
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(500, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900, this.ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.08);
+  }
+
+  playWordCompleted() {
+    this.init();
+    if (!this.ctx) return;
+    [440, 554, 659].forEach((freq, i) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      const at = this.ctx!.currentTime + i * 0.08;
+      gain.gain.setValueAtTime(0.2, at);
+      gain.gain.exponentialRampToValueAtTime(0.01, at + 0.2);
+      osc.start(at);
+      osc.stop(at + 0.2);
+    });
+  }
+
+  playSentenceCompleted() {
+    this.init();
+    if (!this.ctx) return;
+    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      const at = this.ctx!.currentTime + i * 0.1;
+      gain.gain.setValueAtTime(0.25, at);
+      gain.gain.exponentialRampToValueAtTime(0.01, at + 0.35);
+      osc.start(at);
+      osc.stop(at + 0.35);
+    });
+  }
+
+  playTailSpill() {
+    this.init();
+    if (!this.ctx) return;
+    [350, 280, 210, 140].forEach((freq, i) => {
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(this.ctx!.destination);
+      const at = this.ctx!.currentTime + i * 0.06;
+      gain.gain.setValueAtTime(0.18, at);
+      gain.gain.exponentialRampToValueAtTime(0.01, at + 0.1);
+      osc.start(at);
+      osc.stop(at + 0.1);
+    });
+  }
+
   playBattleResult(won: boolean) {
     this.init();
     if (!this.ctx) return;

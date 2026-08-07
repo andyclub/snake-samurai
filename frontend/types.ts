@@ -5,6 +5,9 @@ export enum GamePhase {
   THEATER = 'THEATER'
 }
 
+export type Theme = 'free' | 'life' | 'study' | 'work' | 'travel' | 'culture' | 'disaster';
+export type ArenaMode = 'free' | 'random' | 'disaster';
+
 export interface Player {
   id: string;
   name: string;
@@ -12,64 +15,148 @@ export interface Player {
   isBot: boolean;
   iq?: number;
   isSpectator?: boolean;
-  battleStats?: {
-    battles: number;
-    votes: number;
-    correctVotes: number;
-    wins: number;
-    losses: number;
-    devours: number;
-    splits: number;
+  stats?: {
+    matches: number;
+    wordsCompleted: number;
+    sentencesCompleted: number;
+    tailHits: number;
+    finalLength: number;
   };
 }
 
-export interface Slime {
-  id: string;
-  x: number;
-  y: number;
-  targetX: number;
-  targetY: number;
-  size: number; // Radius
+export interface HeldFood {
+  foodId: string;
+  glyph: string;
+  normalizedGlyph: string;
   color: string;
-  members: Player[];
-  isDead: boolean;
-  memberTargets?: Record<string, { x: number; y: number; at: number }>;
-  spawnedAt?: number;
-  invulnerableUntil?: number;
+  pickedAt: number;
+  order: number;
 }
 
-export interface Question {
+export interface CandidateWord {
+  id: string;
+  canonical: string;
+  reading: string;
+  meaning?: string;
+  readingLength: number;
+  themeMatch: boolean;
+}
+
+export interface CandidateSentence {
   id: string;
   text: string;
-  options: string[];
-  correctIndex: number;
-  type: 'grammar' | 'vocab' | 'culture';
-  level?: string;
+  punctuations: string[];
+  totalLengthBonus: number;
+  themeMatch: boolean;
 }
 
-export interface Encounter {
+export type LanguageBuildStatus = 'INVALID' | 'PREFIX' | 'WORD_READY' | 'SENTENCE_BUILDING' | 'SENTENCE_READY';
+
+export interface LanguageBuildState {
+  status: LanguageBuildStatus;
+  candidates: CandidateWord[];
+  sentenceCandidates: CandidateSentence[];
+  version: number;
+}
+
+export interface BodySegment {
   id: string;
-  slime1Id: string;
-  slime2Id: string;
-  question: Question;
-  startTime: number;
-  votes1: Record<string, number>; // playerId -> optionIndex
-  votes2: Record<string, number>;
-  voteTimes1?: Record<string, number>; // host-observed submission timestamp
-  voteTimes2?: Record<string, number>;
-  participants1?: Player[];
-  participants2?: Player[];
-  resolved: boolean;
-  result?: {
-    winnerSlimeId: string;
-    winnerName: string;
-    correctIndex: number;
-    loserSlimeId: string;
-    loserName: string;
-    outcome: 'split' | 'devour';
-    leadMs?: number;
-    resolvedAt?: number;
+  type: 'base' | 'word' | 'sentence';
+  lengthUnits: number;
+  colorMode: 'player' | 'food' | 'gold';
+  color: string;
+  completionRecordId?: string;
+  flag?: {
+    type: 'word' | 'sentence';
+    text: string;
   };
+}
+
+export interface CompletionRecord {
+  id: string;
+  type: 'word' | 'sentence';
+  canonical: string;
+  reading: string;
+  consumedFoodIds: string[];
+  readingLength: number;
+  punctuationBonus: number;
+  totalLengthAdded: number;
+  theme: Theme;
+  completedAt: number;
+}
+
+export interface BodyPoint {
+  x: number;
+  y: number;
+}
+
+export interface SnakeState {
+  id: string;
+  playerId: string;
+  nickname: string;
+  baseColor: string;
+  head: BodyPoint;
+  direction: BodyPoint;
+  target: BodyPoint;
+  bodyPath: BodyPoint[];
+  bodySegments: BodySegment[];
+  baseLength: number;
+  earnedLength: number;
+  totalLength: number;
+  currentSpeed: number;
+  heldFoods: HeldFood[];
+  buildState: LanguageBuildState;
+  completionHistory: CompletionRecord[];
+  isBot: boolean;
+  botLevel?: number;
+  connected: boolean;
+  invulnerableUntil?: number;
+  onBoundary?: boolean;
+}
+
+export interface FoodState {
+  id: string;
+  displayedGlyph: string;
+  normalizedGlyph: string;
+  type: 'hiragana' | 'dakuon' | 'handakuon' | 'small_kana' | 'katakana' | 'chouon' | 'kanji';
+  color: string;
+  x: number;
+  y: number;
+  collisionRadius: number;
+  state: 'ground' | 'held';
+  heldByPlayerId: string | null;
+}
+
+export interface ArenaBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+export interface ArenaState {
+  id: string;
+  mode: ArenaMode;
+  theme: Theme;
+  phase: GamePhase;
+  startedAt: number | null;
+  endsAt: number | null;
+  bounds: ArenaBounds;
+  snakes: Record<string, SnakeState>;
+  foods: Record<string, FoodState>;
+  leaderboard: LeaderboardEntry[];
+  version: number;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  playerId: string;
+  nickname: string;
+  color: string;
+  totalLength: number;
+  wordsCount: number;
+  sentencesCount: number;
+  isBot: boolean;
 }
 
 export type ParticipantType = 'human' | 'bot';
@@ -78,11 +165,14 @@ export interface HistoryParticipant {
   id: string;
   name: string;
   participantType: ParticipantType;
+  finalLength: number;
+  wordsCompleted: number;
+  sentencesCompleted: number;
 }
 
 export interface AuditEvent {
   id: string;
-  type: 'match_started' | 'battle_started' | 'battle_resolved' | 'match_ended';
+  type: 'match_started' | 'word_completed' | 'sentence_completed' | 'tail_spill' | 'match_ended';
   at: number;
   details?: Record<string, string | number | boolean | string[]>;
 }
@@ -90,7 +180,7 @@ export interface AuditEvent {
 export interface MatchHistory {
   matchNumber: number;
   status: 'completed' | 'interrupted';
-  terminationReason: 'timeout' | 'last_slime' | 'manual_off' | 'manual_restart';
+  terminationReason: 'timeout' | 'manual_off' | 'manual_restart';
   startedAt: string;
   endedAt: string;
   lastSnapshotAt: string;
@@ -99,9 +189,6 @@ export interface MatchHistory {
   botCount: number;
   participants: HistoryParticipant[];
   winners: HistoryParticipant[];
-  losers: HistoryParticipant[];
-  provisionalLeaders: HistoryParticipant[];
-  survivingParticipants: HistoryParticipant[];
   events: AuditEvent[];
 }
 
