@@ -117,8 +117,9 @@ export function updateSnakePosition(
   };
 }
 
-export function calculateCameraZoom(totalLength: number): number {
-  // Initial zoom is 1.55 (large close-up view of snake & foods), scales to min 0.85
-  const targetZoom = 1.55 / (1.0 + Math.log10(1 + totalLength * 0.05));
-  return Math.max(0.85, Math.min(1.55, targetZoom));
+export function calculateCameraZoom(totalLength?: number): number {
+  const len = (typeof totalLength === 'number' && Number.isFinite(totalLength)) ? totalLength : 3;
+  const targetZoom = 1.55 / (1.0 + Math.log10(1 + Math.max(0, len) * 0.05));
+  const zoom = Math.max(0.85, Math.min(1.55, targetZoom));
+  return Number.isFinite(zoom) ? zoom : 1.2;
 }

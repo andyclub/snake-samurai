@@ -56,16 +56,16 @@ export const LobbyScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col items-center justify-between p-4 sm:p-6 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8 overflow-y-auto">
       {/* Top Header: Title, FAQ, QR Code & Language Selector */}
-      <header className="w-full max-w-4xl flex items-center justify-between z-20 gap-2">
-        <div className="flex items-center gap-3">
+      <header className="w-full max-w-4xl mx-auto flex items-center justify-between z-20 gap-2 shrink-0 pb-2">
+        <div className="flex items-center gap-2.5">
           <div className="p-2 bg-cyan-500/20 border border-cyan-500/40 rounded-2xl">
-            <Sparkles className="w-6 h-6 text-cyan-400" />
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">{t('app.title')}</h1>
-            <p className="text-xs text-slate-400">snake-samurai</p>
+            <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">{t('app.title')}</h1>
+            <p className="text-[10px] sm:text-xs text-slate-400">snake-samurai</p>
           </div>
         </div>
 
@@ -74,7 +74,7 @@ export const LobbyScreen: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setShowRulesModal(true)}
-            className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-white/10 hover:border-amber-400 rounded-full text-xs font-bold text-amber-300 transition-all shadow-lg active:scale-95"
+            className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-white/10 hover:border-amber-400 rounded-full text-xs font-bold text-amber-300 transition-all shadow-lg active:scale-95 cursor-pointer"
           >
             <HelpCircle className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">{t('rules.title')}</span>
@@ -85,7 +85,7 @@ export const LobbyScreen: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setShowQRCodeModal(true)}
-            className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-cyan-950/80 border border-cyan-500/40 hover:border-cyan-400 rounded-full text-xs font-bold text-cyan-300 transition-all shadow-lg active:scale-95"
+            className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-cyan-950/80 border border-cyan-500/40 hover:border-cyan-400 rounded-full text-xs font-bold text-cyan-300 transition-all shadow-lg active:scale-95 cursor-pointer"
           >
             <QrCode className="w-4 h-4 text-cyan-400" />
             <span className="hidden sm:inline">h.kazeabc.com</span>
@@ -97,7 +97,7 @@ export const LobbyScreen: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setShowLangMenu(!showLangMenu)}
-              className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-white/10 hover:border-cyan-400 rounded-full text-xs font-bold transition-all active:scale-95"
+              className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-white/10 hover:border-cyan-400 rounded-full text-xs font-bold transition-all active:scale-95 cursor-pointer"
             >
               <Globe className="w-4 h-4 text-cyan-400" />
               <span className="uppercase">{lang}</span>
@@ -132,24 +132,24 @@ export const LobbyScreen: React.FC<Props> = ({
       </header>
 
       {/* Center Cards: 3 Arena Cards & Player Config */}
-      <main className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 my-auto z-10 py-4">
+      <main className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-6 my-auto z-10 py-3">
         {/* 1. 初级场 (新手自由场) */}
         <button
           type="button"
           onClick={() => onSelectMode('free', 'free')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-6 border transition-all ${
+          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all ${
             selectedMode === 'free'
               ? 'bg-cyan-950/60 border-cyan-400 shadow-xl shadow-cyan-500/20 scale-102'
               : 'bg-slate-900/80 border-white/10 hover:border-cyan-500/50'
           }`}
         >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black uppercase px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
               {t('arena.permanent')}
             </span>
             {selectedMode === 'free' && <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />}
           </div>
-          <h2 className="text-xl font-black text-white mb-2">🟢 {t('arena.default')}</h2>
+          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🟢 {t('arena.default')}</h2>
           <p className="text-xs text-slate-400 leading-relaxed">
             新手自由场。不限制词汇主题，自由拼词组句，熟悉侍蛇游动与对战操作。
           </p>
@@ -159,19 +159,19 @@ export const LobbyScreen: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => onSelectMode('random', 'travel')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-6 border transition-all ${
+          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all ${
             selectedMode === 'random'
               ? 'bg-amber-950/60 border-amber-400 shadow-xl shadow-amber-500/20 scale-102'
               : 'bg-slate-900/80 border-white/10 hover:border-amber-500/50'
           }`}
         >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black uppercase px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
               {t('arena.open')}
             </span>
             {selectedMode === 'random' && <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />}
           </div>
-          <h2 className="text-xl font-black text-white mb-2">🟡 {t('arena.title')}</h2>
+          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🟡 {t('arena.title')}</h2>
           <p className="text-xs text-slate-400 leading-relaxed">
             随机抽签主题（旅行、学习、工作、生活、文化）。仅限与主题相符的词句结算。
           </p>
@@ -181,19 +181,19 @@ export const LobbyScreen: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => onSelectMode('disaster', 'disaster')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-6 border transition-all ${
+          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all ${
             selectedMode === 'disaster'
               ? 'bg-red-950/60 border-red-500 shadow-xl shadow-red-500/20 scale-102'
               : 'bg-slate-900/80 border-white/10 hover:border-red-500/50'
           }`}
         >
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black uppercase px-3 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
               {t('arena.disasterOnly')}
             </span>
             {selectedMode === 'disaster' && <span className="w-3 h-3 rounded-full bg-red-400 animate-ping" />}
           </div>
-          <h2 className="text-xl font-black text-white mb-2">🔴 {t('arena.disaster')}</h2>
+          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🔴 {t('arena.disaster')}</h2>
           <p className="text-xs text-slate-400 leading-relaxed">
             日本·富山市防灾知识专场。包含地震、津波、避難所、高台避险等专业表达。
           </p>
@@ -201,7 +201,7 @@ export const LobbyScreen: React.FC<Props> = ({
       </main>
 
       {/* Bottom Panel: Player Profile & Start Match */}
-      <footer className="w-full max-w-4xl bg-slate-900/90 border border-white/10 rounded-3xl p-4 sm:p-6 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 z-20">
+      <footer className="w-full max-w-4xl mx-auto bg-slate-900/90 border border-white/10 rounded-3xl p-4 sm:p-6 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 z-20 shrink-0 mt-2">
         {/* Nickname & Color Customization */}
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="space-y-1 flex-1">
@@ -243,7 +243,7 @@ export const LobbyScreen: React.FC<Props> = ({
           <button
             type="button"
             onClick={onStart}
-            className="touch-manipulation w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-lg rounded-2xl shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="touch-manipulation w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-base sm:text-lg rounded-2xl shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Play className="w-5 h-5 fill-current" /> {t('btn.startRound')}
           </button>

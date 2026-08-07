@@ -52,26 +52,40 @@ export const GameBoard: React.FC<Props> = ({
 
   const mySnake = snakes[`snake-${player.id}`] || Object.values(snakes).find(s => s.playerId === player.id);
 
+  // Keep live values in refs for decoupled 60fps canvas rendering
+  const snakesRef = useRef(snakes);
+  const foodsRef = useRef(foods);
+  const boundsRef = useRef(bounds);
+  const mySnakeRef = useRef(mySnake);
+  const clickEffectRef = useRef(clickEffect);
+
+  snakesRef.current = snakes;
+  foodsRef.current = foods;
+  boundsRef.current = bounds;
+  mySnakeRef.current = mySnake;
+  clickEffectRef.current = clickEffect;
+
   // Pointer interaction
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas || !mySnake) return;
+    const currentMySnake = mySnakeRef.current;
+    if (!canvas || !currentMySnake) return;
 
     const rect = canvas.getBoundingClientRect();
     const touchX = e.clientX - rect.left;
     const touchY = e.clientY - rect.top;
 
-    const cameraZoom = calculateCameraZoom(mySnake.totalLength);
-    const cameraX = mySnake.head.x;
-    const cameraY = mySnake.head.y;
+    const cameraZoom = calculateCameraZoom(currentMySnake.totalLength);
+    const cameraX = currentMySnake.head.x;
+    const cameraY = currentMySnake.head.y;
 
     // Convert screen coordinates to world coordinates
     const worldX = (touchX - canvas.width / 2) / cameraZoom + cameraX;
     const worldY = (touchY - canvas.height / 2) / cameraZoom + cameraY;
 
     // Check if tapping player's own snake tail tip to spill foods
-    const tailPt = mySnake.bodyPath[mySnake.bodyPath.length - 1];
-    if (tailPt && Math.hypot(worldX - tailPt.x, worldY - tailPt.y) < 40 && mySnake.heldFoods.length > 0) {
+    const tailPt = currentMySnake.bodyPath[currentMySnake.bodyPath.length - 1];
+    if (tailPt && Math.hypot(worldX - tailPt.x, worldY - tailPt.y) < 40 && currentMySnake.heldFoods.length > 0) {
       onSpillTail();
       setClickEffect({ x: worldX, y: worldY, time: Date.now() });
       audio.playTailSpill();
@@ -83,7 +97,7 @@ export const GameBoard: React.FC<Props> = ({
     audio.playPickup();
   };
 
-  // Render loop
+  // Continuous smooth 60fps Canvas Render Loop (Never unmounts or restarts on React re-renders)
   useEffect(() => {
     let animationFrameId: number;
 
@@ -99,8 +113,19 @@ export const GameBoard: React.FC<Props> = ({
             canvas.height = height;
           }
 
-          const zoom = mySnake ? calculateCameraZoom(mySnake.totalLength) : 1.2;
-          renderGame(ctx, width, height, bounds, snakes, foods, mySnake ? mySnake.id : null, zoom, clickEffect);
+          const currentSnake = mySnakeRef.current;
+          const zoom = calculateCameraZoom(currentSnake ? currentSnake.totalLength : 3);
+          renderGame(
+            ctx,
+            width,
+            height,
+            boundsRef.current,
+            snakesRef.current,
+            foodsRef.current,
+            currentSnake ? currentSnake.id : null,
+            zoom,
+            clickEffectRef.current
+          );
         }
       }
       animationFrameId = requestAnimationFrame(render);
@@ -108,7 +133,7 @@ export const GameBoard: React.FC<Props> = ({
 
     render();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [snakes, foods, bounds, mySnake, clickEffect]);
+  }, []); // Run ONCE on mount!
 
   // Evaluate candidate words / sentences
   const heldFoods = mySnake?.heldFoods || [];
@@ -121,7 +146,7 @@ export const GameBoard: React.FC<Props> = ({
     .sort((a, b) => b.totalLength - a.totalLength);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 select-none">
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-slate-950 select-none">
       {/* Canvas */}
       <canvas
         ref={canvasRef}
@@ -129,59 +154,62 @@ export const GameBoard: React.FC<Props> = ({
         className="w-full h-full cursor-crosshair touch-none"
       />
 
-      {/* Top HUD Controls Bar */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-20 gap-2">
+      {/* Top HUD Controls Bar with Mobile Safe Area Support */}
+      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 right-3 sm:left-4 sm:right-4 flex items-center justify-between pointer-events-none z-20 gap-2">
         {/* Theme & Mode Banner */}
-        <div className="bg-slate-900/90 border border-cyan-500/30 backdrop-blur-md rounded-2xl px-4 py-2 shadow-xl flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
+        <div className="bg-slate-900/90 border border-cyan-500/30 backdrop-blur-md rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-xl flex items-center gap-2 sm:gap-3">
+          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-pulse" />
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-cyan-300 font-bold">
+            <div className="text-[9px] sm:text-[10px] uppercase tracking-wider text-cyan-300 font-bold">
               {mode === 'disaster' ? t('arena.disaster') : mode === 'random' ? t('arena.title') : t('arena.permanent')}
             </div>
-            <div className="text-sm font-black text-white capitalize">
+            <div className="text-xs sm:text-sm font-black text-white capitalize">
               {theme === 'disaster' ? '防災・安全' : theme}
             </div>
           </div>
         </div>
 
         {/* 120s Countdown Timer */}
-        <div className={`bg-slate-900/90 border backdrop-blur-md rounded-2xl px-5 py-2 shadow-xl text-center ${
+        <div className={`bg-slate-900/90 border backdrop-blur-md rounded-2xl px-4 py-1.5 sm:px-5 sm:py-2 shadow-xl text-center ${
           timeRemainingSeconds <= 10 ? 'border-red-500 text-red-400 animate-bounce' : timeRemainingSeconds <= 30 ? 'border-amber-500 text-amber-300' : 'border-emerald-500/40 text-emerald-400'
         }`}>
-          <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400">{t('game.timeRemaining')}</div>
-          <div className="text-xl font-black font-mono">
+          <div className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest text-slate-400">{t('game.timeRemaining')}</div>
+          <div className="text-lg sm:text-xl font-black font-mono">
             {Math.floor(timeRemainingSeconds / 60)}:{(timeRemainingSeconds % 60).toString().padStart(2, '0')}
           </div>
         </div>
 
         {/* Top Right Actions: Language, FAQ, QR Code */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
           {/* QR Code Button */}
           <button
+            type="button"
             onClick={() => setShowQRModal(true)}
-            className="p-2.5 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-cyan-400 shadow-xl transition-all"
+            className="touch-manipulation p-2 sm:p-2.5 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-cyan-400 shadow-xl transition-all active:scale-95"
             title="邀请二维码"
           >
-            <QrCode className="w-5 h-5" />
+            <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           {/* FAQ Button */}
           <button
+            type="button"
             onClick={() => setShowRulesModal(true)}
-            className="p-2.5 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-amber-400 shadow-xl transition-all"
+            className="touch-manipulation p-2 sm:p-2.5 bg-slate-900/90 border border-white/10 hover:border-amber-400 backdrop-blur-md rounded-2xl text-amber-400 shadow-xl transition-all active:scale-95"
             title={t('rules.title')}
           >
-            <HelpCircle className="w-5 h-5" />
+            <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           {/* Language Selector Dropdown */}
           <div className="relative">
             <button
+              type="button"
               onClick={() => setShowLangMenu(!showLangMenu)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-xs font-bold text-white shadow-xl transition-all"
+              className="touch-manipulation flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-xs font-bold text-white shadow-xl transition-all active:scale-95"
             >
-              <Globe className="w-4 h-4 text-cyan-400" />
-              <span className="uppercase">{lang}</span>
+              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-cyan-400" />
+              <span className="uppercase text-[11px] sm:text-xs">{lang}</span>
             </button>
             {showLangMenu && (
               <div className="absolute right-0 mt-2 w-36 bg-slate-900 border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-40">
@@ -193,12 +221,13 @@ export const GameBoard: React.FC<Props> = ({
                 ].map(item => (
                   <button
                     key={item.code}
+                    type="button"
                     onClick={() => {
                       saveLanguagePreference(item.code as Language);
                       onSelectLanguage(item.code as Language);
                       setShowLangMenu(false);
                     }}
-                    className={`w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors ${
+                    className={`touch-manipulation w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors ${
                       lang === item.code ? 'text-cyan-400 bg-cyan-950/40' : 'text-slate-300'
                     }`}
                   >
@@ -217,11 +246,12 @@ export const GameBoard: React.FC<Props> = ({
         {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates.map(candidate => (
           <button
             key={candidate.id}
+            type="button"
             onClick={() => {
               audio.playSentenceCompleted();
               onSettleSentence(candidate);
             }}
-            className="w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 border-2 border-yellow-200 text-slate-950 font-black py-3 px-6 rounded-2xl shadow-2xl shadow-yellow-500/50 hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
+            className="touch-manipulation w-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 border-2 border-yellow-200 text-slate-950 font-black py-3 px-6 rounded-2xl shadow-2xl shadow-yellow-500/50 hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
           >
             <span className="text-lg tracking-wide">{candidate.text}</span>
             <span className="text-xs bg-black text-yellow-300 font-extrabold px-3 py-1 rounded-full">
@@ -234,11 +264,12 @@ export const GameBoard: React.FC<Props> = ({
         {!sentenceAnalysis.isSentenceReady && wordSearch.status === 'WORD_READY' && wordSearch.candidates.map(candidate => (
           <button
             key={candidate.id}
+            type="button"
             onClick={() => {
               audio.playWordCompleted();
               onSettleWord(candidate);
             }}
-            className="w-full bg-slate-900/95 border-2 border-cyan-400 backdrop-blur-xl text-cyan-300 font-black py-3 px-6 rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
+            className="touch-manipulation w-full bg-slate-900/95 border-2 border-cyan-400 backdrop-blur-xl text-cyan-300 font-black py-3 px-6 rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
           >
             <div className="text-left">
               <div className="text-lg text-white font-extrabold">{candidate.canonical}</div>
@@ -256,8 +287,9 @@ export const GameBoard: React.FC<Props> = ({
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
             <button
+              type="button"
               onClick={() => setShowRulesModal(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
+              className="touch-manipulation absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
             >
               <X className="w-5 h-5" />
             </button>
@@ -276,8 +308,9 @@ export const GameBoard: React.FC<Props> = ({
             </div>
 
             <button
+              type="button"
               onClick={() => setShowRulesModal(false)}
-              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+              className="touch-manipulation w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
             >
               {t('rules.close')}
             </button>
@@ -290,8 +323,9 @@ export const GameBoard: React.FC<Props> = ({
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl relative">
             <button
+              type="button"
               onClick={() => setShowQRModal(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
+              className="touch-manipulation absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
             >
               <X className="w-5 h-5" />
             </button>
@@ -322,8 +356,9 @@ export const GameBoard: React.FC<Props> = ({
             </div>
 
             <button
+              type="button"
               onClick={() => setShowQRModal(false)}
-              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+              className="touch-manipulation w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
             >
               {t('rules.close')}
             </button>
