@@ -69,6 +69,38 @@ const App: React.FC = () => {
     setPlayer(prev => ({ ...prev, name, color }));
   };
 
+  // Helper function to create player snake
+  const createPlayerSnake = useCallback((p: Player): SnakeState => {
+    const mySnakeId = `snake-${p.id}`;
+    const initialPath = Array.from({ length: 9 }, (_, i) => ({ x: -i * 14, y: 0 }));
+    return {
+      id: mySnakeId,
+      playerId: p.id,
+      nickname: p.name,
+      baseColor: p.color,
+      head: { x: 0, y: 0 },
+      direction: { x: 1, y: 0 },
+      target: { x: 100, y: 0 },
+      bodyPath: initialPath,
+      bodySegments: Array.from({ length: 3 }, (_, i) => ({
+        id: `base-seg-${i}`,
+        type: 'base',
+        lengthUnits: 1,
+        colorMode: 'player',
+        color: p.color
+      })),
+      baseLength: 3,
+      earnedLength: 0,
+      totalLength: 3,
+      currentSpeed: 180,
+      heldFoods: [],
+      buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
+      completionHistory: [],
+      isBot: false,
+      connected: true
+    };
+  }, []);
+
   // Multiplayer Hook
   const { isHost, sendMoveIntent, broadcastSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: 'main',
@@ -85,7 +117,6 @@ const App: React.FC = () => {
       return { ok: true, message: 'Command executed' };
     },
     onSnapshot: (snapshot) => {
-      // Protect active local game session against empty/stale remote snapshot overwrites
       if (snapshot && phaseRef.current !== GamePhase.PLAYING) {
         if (snapshot.snakes && Object.keys(snapshot.snakes).length > 0) {
           snakesRef.current = snapshot.snakes;
@@ -137,36 +168,8 @@ const App: React.FC = () => {
     const now = Date.now();
     const allSnakes: Record<string, SnakeState> = {};
 
-    // Initial human snake with 9 body nodes (= 3 head diameters ~ 120px)
     const mySnakeId = `snake-${player.id}`;
-    const initialPath = Array.from({ length: 9 }, (_, i) => ({ x: -i * 14, y: 0 }));
-
-    allSnakes[mySnakeId] = {
-      id: mySnakeId,
-      playerId: player.id,
-      nickname: player.name,
-      baseColor: player.color,
-      head: { x: 0, y: 0 },
-      direction: { x: 1, y: 0 },
-      target: { x: 100, y: 0 },
-      bodyPath: initialPath,
-      bodySegments: Array.from({ length: 3 }, (_, i) => ({
-        id: `base-seg-${i}`,
-        type: 'base',
-        lengthUnits: 1,
-        colorMode: 'player',
-        color: player.color
-      })),
-      baseLength: 3,
-      earnedLength: 0,
-      totalLength: 3,
-      currentSpeed: 180,
-      heldFoods: [],
-      buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
-      completionHistory: [],
-      isBot: false,
-      connected: true
-    };
+    allSnakes[mySnakeId] = createPlayerSnake(player);
 
     // Add 3 Active Bot Snakes
     INITIAL_BOTS.forEach((botDef, index) => {
@@ -217,7 +220,7 @@ const App: React.FC = () => {
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
     setPhase(GamePhase.PLAYING);
-  }, [player]);
+  }, [player, createPlayerSnake]);
 
   // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
@@ -254,8 +257,14 @@ const App: React.FC = () => {
 
       // 2. Perform frame calculations on ref data
       const prevFoods = foodsRef.current;
-      const prevSnakes = snakesRef.current;
+      let prevSnakes = { ...snakesRef.current };
       const currentTheme = themeRef.current;
+
+      // Ensure local player snake exists in game engine during PLAYING phase
+      const mySnakeId = `snake-${player.id}`;
+      if (!prevSnakes[mySnakeId]) {
+        prevSnakes[mySnakeId] = createPlayerSnake(player);
+      }
 
       let updatedFoods = { ...prevFoods };
 
@@ -341,7 +350,7 @@ const App: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase]);
+  }, [phase, player, createPlayerSnake]);
 
   // Sync React state periodically for Leaderboard & candidate HUD
   useEffect(() => {

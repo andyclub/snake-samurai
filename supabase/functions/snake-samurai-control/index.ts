@@ -67,21 +67,27 @@ Deno.serve(async (req) => {
   if (req.method === "GET") {
     const { data, error } = await admin.from(roomTable).select("phase,lobby_ends_at,arena_name,snapshot,updated_at").eq("id", requestedRoomId).maybeSingle();
     if (error) return new Response(JSON.stringify({ ok: false, message: error.message }), { status: 500, headers });
+    
     const snapshot = sanitizeSnapshot(data?.snapshot || { slimes: [], encounters: [] });
-    const expired = data?.phase === "PLAYING" && typeof snapshot.startedAt === "number" && Date.now() >= snapshot.startedAt + 120_000;
-    const phase = expired ? "THEATER" : data?.phase || "OFF";
-    if (expired) {
-      const { error: expiryError } = await admin.from(roomTable).update({
-        phase: "THEATER",
-        snapshot,
+    const updatedAtTime = data?.updated_at ? Date.parse(data.updated_at) : 0;
+    const isStale = (Date.now() - updatedAtTime) > 150_000; // 2.5 minutes stale threshold
+
+    const expired = (data?.phase === "PLAYING" && typeof snapshot.startedAt === "number" && Date.now() >= snapshot.startedAt + 120_000) || isStale;
+    const phase = expired ? "LOBBY" : data?.phase || "LOBBY";
+
+    if (expired && data?.phase === "PLAYING") {
+      await admin.from(roomTable).update({
+        phase: "LOBBY",
+        lobby_ends_at: new Date(Date.now() + 30_000).toISOString(),
+        snapshot: { slimes: [], encounters: [] },
         updated_at: new Date().toISOString(),
-      }).eq("id", requestedRoomId).eq("phase", "PLAYING");
-      if (expiryError) return new Response(JSON.stringify({ ok: false, message: expiryError.message }), { status: 500, headers });
+      }).eq("id", requestedRoomId);
     }
+
     return new Response(JSON.stringify({
       ok: true,
       phase,
-      lobbyEndsAt: data?.lobby_ends_at || null,
+      lobbyEndsAt: data?.lobby_ends_at || new Date(Date.now() + 30_000).toISOString(),
       arenaName: data?.arena_name || "海老",
       snapshot,
       updatedAt: data?.updated_at || null,
@@ -259,9 +265,6 @@ Deno.serve(async (req) => {
   const lobbyEndsAt = command === "off" ? null : new Date(now.getTime() + 30_000).toISOString();
   const current = await admin.from(roomTable).select("phase,arena_name").eq("id", roomId).maybeSingle();
   if (current.error) return new Response(JSON.stringify({ ok: false, message: current.error.message }), { status: 500, headers });
-  if (isPublicStart && current.data?.phase !== "OFF" && current.data?.phase !== "THEATER") {
-    return new Response(JSON.stringify({ ok: false, message: "场次已开启，请直接加入" }), { status: 409, headers });
-  }
 
   const arenaName = roomId === "bousai-toyama"
     ? "日本・富山市防災"
@@ -273,16 +276,12 @@ Deno.serve(async (req) => {
     snapshot: { slimes: [], encounters: [] },
     updated_at: now.toISOString(),
   };
-  const write = isPublicStart && current.data
-    ? await admin.from(roomTable).update(roomState).eq("id", roomId).in("phase", ["OFF", "THEATER"]).select("id").maybeSingle()
-    : await admin.from(roomTable).upsert({ id: roomId, ...roomState }, { onConflict: "id" }).select("id").maybeSingle();
+  const write = await admin.from(roomTable).upsert({ id: roomId, ...roomState }, { onConflict: "id" }).select("id").maybeSingle();
   if (write.error) return new Response(JSON.stringify({ ok: false, message: write.error.message }), { status: 500, headers });
-  if (isPublicStart && !write.data) {
-    return new Response(JSON.stringify({ ok: false, message: "场次已被其他玩家开启，请直接加入" }), { status: 409, headers });
-  }
+  
   if (command === "on" || command === "restart") {
     const { error: clearError } = await admin.from(playerTable).delete().eq("room_id", roomId);
-    if (clearError) return new Response(JSON.stringify({ ok: false, message: clearError.message }), { status: 500, headers });
+    if (clearError) console.error("Error clearing players:", clearError);
   }
 
   const message = command === "off" ? "游戏已关闭" : command === "restart" ? "默认场次已重新开局" : `默认场次「${arenaName}」已开启`;
