@@ -1,4 +1,4 @@
-import { ArenaBounds, BodyPoint, BodySegment, SnakeState } from '../types';
+import { ArenaBounds, BodyPoint, SnakeState } from '../types';
 
 export const BASE_SPEED = 180; // pixels per second
 export const MIN_SPEED_RATIO = 0.35;
@@ -11,7 +11,8 @@ export function calculateSnakeSpeed(earnedLengthUnits: number): number {
 export function updateSnakePosition(
   snake: SnakeState,
   deltaTimeSeconds: number,
-  bounds: ArenaBounds
+  bounds: ArenaBounds,
+  allSnakes: Record<string, SnakeState> = {}
 ): SnakeState {
   const speed = calculateSnakeSpeed(snake.earnedLength);
   const dx = snake.target.x - snake.head.x;
@@ -40,21 +41,46 @@ export function updateSnakePosition(
   if (nextY <= minY) { nextY = minY; onBoundary = true; }
   if (nextY >= maxY) { nextY = maxY; onBoundary = true; }
 
+  // SOLID PHYSICAL BODY COLLISION (Cannot pass through other snakes or self body)
+  const collisionRadius = 28; // Head radius (20) + body radius (16) distance threshold
+  let isBlocked = false;
+
+  for (const otherId of Object.keys(allSnakes)) {
+    const otherSnake = allSnakes[otherId];
+    if (!otherSnake || !otherSnake.connected) continue;
+
+    const path = otherSnake.bodyPath;
+    const startIndex = (otherId === snake.id) ? 6 : 0; // Skip first 6 nodes for self body to allow head turning
+
+    for (let i = startIndex; i < path.length; i++) {
+      const node = path[i];
+      const d = Math.hypot(nextX - node.x, nextY - node.y);
+      if (d < collisionRadius) {
+        isBlocked = true;
+        break;
+      }
+    }
+    if (isBlocked) break;
+  }
+
+  if (isBlocked) {
+    // Stop forward movement into the solid obstacle body
+    nextX = snake.head.x;
+    nextY = snake.head.y;
+  }
+
   const newHead = { x: nextX, y: nextY };
   const newDirection = dist > 5 ? { x: vx / speed, y: vy / speed } : snake.direction;
 
   // Update body path (history of head positions)
   const segmentDistance = 14; // Distance between body nodes
-  const totalNodesNeeded = Math.max(3, 3 + snake.totalLength * 2);
+  const totalNodesNeeded = Math.max(12, 12 + snake.totalLength * 3);
 
   const updatedPath: BodyPoint[] = [newHead];
   let currentPos = newHead;
 
   for (let i = 1; i < snake.bodyPath.length && updatedPath.length < totalNodesNeeded; i++) {
-    const prev = snake.bodyPath[i - 1];
     const curr = snake.bodyPath[i];
-    const segDist = Math.hypot(curr.x - prev.x, curr.y - prev.y);
-
     if (Math.hypot(currentPos.x - curr.x, currentPos.y - curr.y) >= segmentDistance) {
       updatedPath.push(curr);
       currentPos = curr;
@@ -77,7 +103,6 @@ export function updateSnakePosition(
 }
 
 export function calculateCameraZoom(totalLength: number): number {
-  // Short snake -> zoom 1.0, long snake -> zoom out smoothly to min 0.55
   const targetZoom = 1.0 / (1.0 + Math.log10(1 + totalLength * 0.08));
   return Math.max(0.55, Math.min(1.0, targetZoom));
 }

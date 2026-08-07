@@ -128,7 +128,13 @@ const App: React.FC = () => {
       direction: { x: 1, y: 0 },
       target: { x: 100, y: 0 },
       bodyPath: initialPath,
-      bodySegments: [],
+      bodySegments: Array.from({ length: 6 }, (_, i) => ({
+        id: `base-seg-${i}`,
+        type: 'base',
+        lengthUnits: 1,
+        colorMode: 'player',
+        color: player.color
+      })),
       baseLength: 6,
       earnedLength: 0,
       totalLength: 6,
@@ -156,7 +162,13 @@ const App: React.FC = () => {
         direction: { x: 1, y: 0 },
         target: { x: startX + 50, y: startY + 50 },
         bodyPath: botPath,
-        bodySegments: [],
+        bodySegments: Array.from({ length: 6 }, (_, i) => ({
+          id: `bot-base-seg-${i}`,
+          type: 'base',
+          lengthUnits: 1,
+          colorMode: 'player',
+          color: botDef.color
+        })),
         baseLength: 6,
         earnedLength: 0,
         totalLength: 6,
@@ -252,7 +264,7 @@ const App: React.FC = () => {
             }
           }
 
-          const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds);
+          const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds, prevSnakes);
 
           // Update buildState for held foods
           const wordSearch = searchCandidates(movedSnake.heldFoods, theme);

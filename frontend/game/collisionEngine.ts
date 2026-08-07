@@ -54,22 +54,31 @@ export function checkAndResolveCollisions(
       }
     }
 
-    // 2. Head vs Enemy Tail collision
+    // 2. Head vs Enemy Tail collision (Spill Battle!)
     for (const victimId of snakeIds) {
       if (victimId === sId) continue; // Enemy only
       const victim = nextSnakes[victimId];
-      if (victim.heldFoods.length === 0) continue;
+      if (!victim || victim.heldFoods.length === 0) continue;
 
-      // Tail hitbox is near the last body node
-      const tailPos = victim.bodyPath[victim.bodyPath.length - 1] || victim.head;
-      const tailDist = Math.hypot(snake.head.x - tailPos.x, snake.head.y - tailPos.y);
+      // Check last 4 nodes of victim's tail
+      const path = victim.bodyPath;
+      const tailNodes = path.slice(Math.max(0, path.length - 4));
+      let isTailHit = false;
 
-      if (tailDist < 32) {
-        // Trigger tail spill for victim!
+      for (const tNode of tailNodes) {
+        const d = Math.hypot(snake.head.x - tNode.x, snake.head.y - tNode.y);
+        if (d < 45) { // 45px generous tail hit radius
+          isTailHit = true;
+          break;
+        }
+      }
+
+      if (isTailHit) {
+        // Trigger tail spill battle for victim!
         const spilledItems = victim.heldFoods;
         spills.push({ victimId, attackerId: sId, foodCount: spilledItems.length });
 
-        // Scatter spilled foods into map bounds
+        // Scatter spilled foods into current map bounds
         spilledItems.forEach((item, index) => {
           const newFoodId = `spill-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`;
           const margin = 50;
