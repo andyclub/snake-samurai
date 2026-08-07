@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArenaMode, Language, Player, Theme } from '../types';
-import { Users, QrCode, Play, Sparkles, ShieldAlert, Globe, Compass } from 'lucide-react';
+import { Users, QrCode, Play, Sparkles, ShieldAlert, Globe, Compass, X } from 'lucide-react';
 import { saveLanguagePreference } from '../i18n';
 
 interface Props {
@@ -21,6 +21,9 @@ const PLAYER_COLORS = [
   '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'
 ];
 
+const INVITE_URL = 'https://h.kazeabc.com';
+const QR_IMAGE_URL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(INVITE_URL)}&color=38bdf8&bcolor=020617`;
+
 export const LobbyScreen: React.FC<Props> = ({
   player,
   players,
@@ -34,6 +37,7 @@ export const LobbyScreen: React.FC<Props> = ({
   t
 }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
   const [nameInput, setNameInput] = useState(player.name);
   const [selectedColor, setSelectedColor] = useState(player.color);
 
@@ -52,7 +56,7 @@ export const LobbyScreen: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col items-center justify-between p-6 select-none overflow-y-auto">
-      {/* Top Header: Title & Language Selector */}
+      {/* Top Header: Title, QR Code Invite & Language Selector */}
       <header className="w-full max-w-4xl flex items-center justify-between z-20">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-cyan-500/20 border border-cyan-500/40 rounded-2xl">
@@ -64,39 +68,50 @@ export const LobbyScreen: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Language Menu */}
-        <div className="relative">
+        <div className="flex items-center gap-3">
+          {/* QR Code Invitation Button */}
           <button
-            onClick={() => setShowLangMenu(!showLangMenu)}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/10 hover:border-cyan-400 rounded-full text-xs font-bold transition-all"
+            onClick={() => setShowQRCodeModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-950/80 border border-cyan-500/40 hover:border-cyan-400 rounded-full text-xs font-bold text-cyan-300 transition-all shadow-lg"
           >
-            <Globe className="w-4 h-4 text-cyan-400" />
-            <span className="uppercase">{lang}</span>
+            <QrCode className="w-4 h-4 text-cyan-400" />
+            <span>邀请二维码 (h.kazeabc.com)</span>
           </button>
-          {showLangMenu && (
-            <div className="absolute right-0 mt-2 w-36 bg-slate-900 border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-30">
-              {[
-                { code: 'zh-CN', label: '简体中文' },
-                { code: 'ja', label: '日本語' },
-                { code: 'en', label: 'English' },
-                { code: 'zh-TW', label: '繁體中文' }
-              ].map(item => (
-                <button
-                  key={item.code}
-                  onClick={() => {
-                    saveLanguagePreference(item.code as Language);
-                    onSelectLanguage(item.code as Language);
-                    setShowLangMenu(false);
-                  }}
-                  className={`w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors ${
-                    lang === item.code ? 'text-cyan-400 bg-cyan-950/40' : 'text-slate-300'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
+
+          {/* Language Menu */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLangMenu(!showLangMenu)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-900 border border-white/10 hover:border-cyan-400 rounded-full text-xs font-bold transition-all"
+            >
+              <Globe className="w-4 h-4 text-cyan-400" />
+              <span className="uppercase">{lang}</span>
+            </button>
+            {showLangMenu && (
+              <div className="absolute right-0 mt-2 w-36 bg-slate-900 border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-30">
+                {[
+                  { code: 'zh-CN', label: '简体中文' },
+                  { code: 'ja', label: '日本語' },
+                  { code: 'en', label: 'English' },
+                  { code: 'zh-TW', label: '繁體中文' }
+                ].map(item => (
+                  <button
+                    key={item.code}
+                    onClick={() => {
+                      saveLanguagePreference(item.code as Language);
+                      onSelectLanguage(item.code as Language);
+                      setShowLangMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors ${
+                      lang === item.code ? 'text-cyan-400 bg-cyan-950/40' : 'text-slate-300'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -216,6 +231,52 @@ export const LobbyScreen: React.FC<Props> = ({
           </button>
         </div>
       </footer>
+
+      {/* QR Code Invitation Modal */}
+      {showQRCodeModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-8 max-w-sm w-full text-center space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setShowQRCodeModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center justify-center gap-2">
+              <QrCode className="w-6 h-6 text-cyan-400" />
+              <h3 className="text-lg font-black text-white">游戏邀请二维码</h3>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 inline-block shadow-inner">
+              <img
+                src={QR_IMAGE_URL}
+                alt="Invite QR Code"
+                className="w-48 h-48 rounded-xl object-contain"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400">手机扫码或浏览器输入网址加入游戏：</p>
+              <a
+                href={INVITE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-400 font-mono font-bold hover:underline text-sm block"
+              >
+                {INVITE_URL.replace('https://', '')}
+              </a>
+            </div>
+
+            <button
+              onClick={() => setShowQRCodeModal(false)}
+              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+            >
+              关闭
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
