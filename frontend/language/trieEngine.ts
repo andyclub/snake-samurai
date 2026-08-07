@@ -3,8 +3,6 @@ import { LEXICON_DATA } from './lexiconData';
 import { Lexeme } from './types';
 
 export function calculateReadingLength(reading: string): number {
-  // Unicode kana count
-  // Kana units:普通假名=1, 小假名=1, 長音ー=1, 濁音=1
   return Array.from(reading).length;
 }
 
@@ -22,13 +20,19 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
   let exactMatches: Lexeme[] = [];
   let prefixCount = 0;
 
+  // Search exact match for full surface or normalized string
   for (const lexeme of LEXICON_DATA) {
     const canonical = lexeme.canonical;
     const reading = lexeme.reading;
 
-    // Check exact match
+    // Check exact match on full string or prefix/suffix sub-strings
     if (surface === canonical || surface === reading || normalized === reading) {
       exactMatches.push(lexeme);
+    } else {
+      // Also check if the beginning or end of heldFoods forms an exact word (e.g. 「日本」 inside 「日本あ」)
+      if (surface.startsWith(canonical) || surface.startsWith(reading) || surface.endsWith(canonical) || surface.endsWith(reading)) {
+        exactMatches.push(lexeme);
+      }
     }
 
     // Check prefix match
@@ -38,8 +42,10 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
   }
 
   if (exactMatches.length > 0) {
-    // Single hiragana words (reading length === 1) do NOT score or complete
-    const validMatches = exactMatches.filter(lex => calculateReadingLength(lex.reading) >= 2);
+    // Remove duplicates
+    const uniqueMatchesMap = new Map<string, Lexeme>();
+    exactMatches.forEach(m => uniqueMatchesMap.set(m.id, m));
+    const validMatches = Array.from(uniqueMatchesMap.values()).filter(lex => calculateReadingLength(lex.reading) >= 2);
 
     if (validMatches.length > 0) {
       const candidates: CandidateWord[] = validMatches.map(lex => {

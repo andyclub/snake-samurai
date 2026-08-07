@@ -297,30 +297,34 @@ export const GameBoard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Floating Word / Sentence Candidate Bubble Anchor */}
+      {/* Top Banner & Floating Word / Sentence Candidate Bubble Anchor */}
       {mySnake && (wordSearch.status === 'WORD_READY' || sentenceAnalysis.isSentenceReady) && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-28 pointer-events-auto z-30 flex flex-col items-center gap-2">
-          {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates[0] && (
-            <button
-              type="button"
-              onClick={() => onSettleSentence(sentenceAnalysis.candidates[0])}
-              className="touch-manipulation animate-bounce px-5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-sm rounded-full shadow-2xl border-2 border-white flex items-center gap-2 cursor-pointer active:scale-95"
-            >
-              <Sparkles className="w-4 h-4 fill-current" />
-              <span>【句】{sentenceAnalysis.candidates[0].text} (+{sentenceAnalysis.candidates[0].score}分)</span>
-            </button>
-          )}
+        <>
+          {/* Top Banner */}
+          <div className="absolute top-[max(4.5rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 pointer-events-auto z-30 flex flex-col items-center gap-2">
+            {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates[0] && (
+              <button
+                type="button"
+                onClick={() => onSettleSentence(sentenceAnalysis.candidates[0])}
+                className="touch-manipulation animate-bounce px-6 py-3 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 font-black text-sm sm:text-base rounded-full shadow-2xl border-2 border-white flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Sparkles className="w-5 h-5 fill-current text-slate-950" />
+                <span>✨ 点击结算句子：【{sentenceAnalysis.candidates[0].text}】</span>
+              </button>
+            )}
 
-          {wordSearch.status === 'WORD_READY' && wordSearch.candidates[0] && (
-            <button
-              type="button"
-              onClick={() => onSettleWord(wordSearch.candidates[0])}
-              className="touch-manipulation px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs rounded-full shadow-xl border border-white/40 flex items-center gap-1.5 cursor-pointer active:scale-95"
-            >
-              <span>【词】{wordSearch.candidates[0].canonical} ({wordSearch.candidates[0].meaning})</span>
-            </button>
-          )}
-        </div>
+            {wordSearch.status === 'WORD_READY' && wordSearch.candidates[0] && (
+              <button
+                type="button"
+                onClick={() => onSettleWord(wordSearch.candidates[0])}
+                className="touch-manipulation animate-pulse px-5 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-xs sm:text-sm rounded-full shadow-2xl border-2 border-white flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Sparkles className="w-4 h-4 fill-current text-slate-950" />
+                <span>🎉 点击结算单词：【{wordSearch.candidates[0].canonical}】({wordSearch.candidates[0].meaning || wordSearch.candidates[0].reading})</span>
+              </button>
+            )}
+          </div>
+        </>
       )}
 
       {/* Leaderboard Panel */}

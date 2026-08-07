@@ -21,9 +21,10 @@ const KATAKANA = ['アオイ', 'カゼ', 'ソラ', 'ナギ', 'リン', 'ユキ',
 const randomKatakana = () => KATAKANA[Math.floor(Math.random() * KATAKANA.length)] + Math.floor(10 + Math.random() * 90);
 
 const INITIAL_BOTS = [
-  { id: 'bot-1', name: '侍カゼ', color: '#ef4444' },
-  { id: 'bot-2', name: '忍者ソラ', color: '#10b981' },
-  { id: 'bot-3', name: '武士ナギ', color: '#8b5cf6' }
+  { id: 'bot-1', name: '侍カゼ (IQ25)', color: '#ef4444', level: 1 },
+  { id: 'bot-2', name: '忍者ソラ (IQ50)', color: '#10b981', level: 2 },
+  { id: 'bot-3', name: '武士ナギ (IQ75)', color: '#8b5cf6', level: 3 },
+  { id: 'bot-4', name: '将軍リン (IQ100)', color: '#f59e0b', level: 4 }
 ];
 
 const App: React.FC = () => {
@@ -199,12 +200,12 @@ const App: React.FC = () => {
         buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
         completionHistory: [],
         isBot: true,
-        botLevel: index + 2,
+        botLevel: botDef.level,
         connected: true
       };
     });
 
-    const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS);
+    const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS, undefined, activeTheme);
 
     // Populate Physics Engine Refs Directly
     snakesRef.current = allSnakes;
@@ -301,7 +302,7 @@ const App: React.FC = () => {
         let snake = prevSnakes[sId];
 
         if (snake.isBot) {
-          const aiDecision = updateBotAI(snake, prevSnakes, updatedFoods, currentBounds);
+          const aiDecision = updateBotAI(snake, prevSnakes, updatedFoods, currentBounds, currentTheme);
           snake = { ...snake, target: aiDecision.target };
 
           if (aiDecision.shouldSettleSentenceIndex !== undefined && snake.buildState.sentenceCandidates[0]) {
