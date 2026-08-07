@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArenaBounds, ArenaMode, ArenaState, CandidateSentence, CandidateWord, FoodState, GamePhase, Language, Player, SnakeState, Theme } from './types';
 import { translations, getBrowserLanguage } from './i18n';
 import GameBoard from './components/GameBoard';
@@ -48,6 +48,17 @@ const App: React.FC = () => {
   const [snakes, setSnakes] = useState<Record<string, SnakeState>>({});
   const [foods, setFoods] = useState<Record<string, FoodState>>({});
 
+  // Mutable refs for 60fps game loop execution to prevent nested setState calls
+  const snakesRef = useRef(snakes);
+  const foodsRef = useRef(foods);
+  const boundsRef = useRef(bounds);
+  const themeRef = useRef(theme);
+
+  useEffect(() => { snakesRef.current = snakes; }, [snakes]);
+  useEffect(() => { foodsRef.current = foods; }, [foods]);
+  useEffect(() => { boundsRef.current = bounds; }, [bounds]);
+  useEffect(() => { themeRef.current = theme; }, [theme]);
+
   const handleUpdatePlayer = (name: string, color: string) => {
     localStorage.setItem('kazeabc_name', name);
     localStorage.setItem('kazeabc_color', color);
@@ -96,9 +107,9 @@ const App: React.FC = () => {
       phase,
       startedAt,
       endsAt: startedAt ? startedAt + 120_000 : null,
-      bounds,
-      snakes,
-      foods,
+      bounds: boundsRef.current,
+      snakes: snakesRef.current,
+      foods: foodsRef.current,
       leaderboard: [],
       version: 1
     })
@@ -184,6 +195,10 @@ const App: React.FC = () => {
 
     const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS);
 
+    snakesRef.current = allSnakes;
+    foodsRef.current = initFoods;
+    boundsRef.current = INITIAL_BOUNDS;
+
     setSnakes(allSnakes);
     setFoods(initFoods);
     setBounds(INITIAL_BOUNDS);
@@ -191,7 +206,7 @@ const App: React.FC = () => {
     setPhase(GamePhase.PLAYING);
   }, [player]);
 
-  // Clean 60fps Game Loop with safe decoupled state updates
+  // Clean 60fps Game Loop using mutable refs to decouple state calls
   useEffect(() => {
     if (phase !== GamePhase.PLAYING) return;
     let animationFrameId: number;
@@ -201,8 +216,8 @@ const App: React.FC = () => {
       const deltaSeconds = Math.min(0.1, (currentTime - lastTime) / 1000);
       lastTime = currentTime;
 
-      // 1. Update 120s match timer & Half Speed Boundary Shrinking
-      let currentBounds = bounds;
+      // 1. Update 120s match timer & Boundary Shrinking
+      let currentBounds = boundsRef.current;
       if (startedAt) {
         const elapsed = Math.floor((Date.now() - startedAt) / 1000);
         const remaining = Math.max(0, 120 - elapsed);
@@ -217,138 +232,148 @@ const App: React.FC = () => {
         const shrinkFactor = elapsed / 240;
         const currentSize = 1000 - shrinkFactor * 200;
         currentBounds = { minX: -currentSize, maxX: currentSize, minY: -currentSize, maxY: currentSize };
+        boundsRef.current = currentBounds;
         setBounds(currentBounds);
       }
 
-      setSnakes(prevSnakes => {
-        setFoods(prevFoods => {
-          let updatedFoods = { ...prevFoods };
+      // 2. Perform frame calculations on ref data
+      const prevFoods = foodsRef.current;
+      const prevSnakes = snakesRef.current;
+      const currentTheme = themeRef.current;
 
-          // Respawn out-of-bounds ground foods
-          for (const fId of Object.keys(updatedFoods)) {
-            const food = updatedFoods[fId];
-            if (food.state !== 'ground') continue;
-            if (
-              food.x < currentBounds.minX || food.x > currentBounds.maxX ||
-              food.y < currentBounds.minY || food.y > currentBounds.maxY
-            ) {
-              updatedFoods[fId] = generateSingleFood(fId, currentBounds);
-            }
+      let updatedFoods = { ...prevFoods };
+
+      // Respawn out-of-bounds ground foods
+      for (const fId of Object.keys(updatedFoods)) {
+        const food = updatedFoods[fId];
+        if (food.state !== 'ground') continue;
+        if (
+          food.x < currentBounds.minX || food.x > currentBounds.maxX ||
+          food.y < currentBounds.minY || food.y > currentBounds.maxY
+        ) {
+          updatedFoods[fId] = generateSingleFood(fId, currentBounds);
+        }
+      }
+
+      // Check if ground food count dropped below threshold (playerCount * 8)
+      const playerCount = Math.max(1, Object.keys(prevSnakes).length);
+      const targetMin = playerCount * 8;
+      const groundCount = Object.values(updatedFoods).filter(f => f.state === 'ground').length;
+
+      if (groundCount < targetMin) {
+        const missing = targetMin - groundCount;
+        for (let i = 0; i < missing; i++) {
+          const newId = `food-replenish-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
+          updatedFoods[newId] = generateSingleFood(newId, currentBounds);
+        }
+      }
+
+      // Update Bot AI & Snake physics
+      const updatedSnakes: Record<string, SnakeState> = {};
+      for (const sId of Object.keys(prevSnakes)) {
+        let snake = prevSnakes[sId];
+
+        if (snake.isBot) {
+          const aiDecision = updateBotAI(snake, prevSnakes, updatedFoods, currentBounds);
+          snake = { ...snake, target: aiDecision.target };
+
+          if (aiDecision.shouldSettleSentenceIndex !== undefined && snake.buildState.sentenceCandidates[0]) {
+            const res = settleSentence(snake, snake.buildState.sentenceCandidates[0], updatedFoods, currentBounds, currentTheme);
+            snake = res.updatedSnake;
+            updatedFoods = res.updatedFoods;
+          } else if (aiDecision.shouldSettleWordIndex !== undefined && snake.buildState.candidates[0]) {
+            const res = settleWord(snake, snake.buildState.candidates[0], updatedFoods, currentBounds, currentTheme);
+            snake = res.updatedSnake;
+            updatedFoods = res.updatedFoods;
           }
+        }
 
-          // Check if ground food count dropped below threshold (playerCount * 8)
-          const playerCount = Math.max(1, Object.keys(prevSnakes).length);
-          const targetMin = playerCount * 8;
-          const groundCount = Object.values(updatedFoods).filter(f => f.state === 'ground').length;
+        const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds, prevSnakes);
+        const wordSearch = searchCandidates(movedSnake.heldFoods, currentTheme);
+        const sentenceAnalysis = analyzeSentenceBuilding(movedSnake.heldFoods, currentTheme);
 
-          if (groundCount < targetMin) {
-            const missing = targetMin - groundCount;
-            for (let i = 0; i < missing; i++) {
-              const newId = `food-replenish-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
-              updatedFoods[newId] = generateSingleFood(newId, currentBounds);
-            }
+        let buildStatus = wordSearch.status;
+        if (sentenceAnalysis.isSentenceReady) {
+          buildStatus = 'SENTENCE_READY';
+        } else if (sentenceAnalysis.isSentenceBuilding) {
+          buildStatus = 'SENTENCE_BUILDING';
+        }
+
+        updatedSnakes[sId] = {
+          ...movedSnake,
+          buildState: {
+            status: buildStatus,
+            candidates: wordSearch.candidates,
+            sentenceCandidates: sentenceAnalysis.candidates,
+            version: (movedSnake.buildState.version || 0) + 1
           }
+        };
+      }
 
-          // Update Bot AI & Snake physics
-          const updatedSnakes: Record<string, SnakeState> = {};
-          for (const sId of Object.keys(prevSnakes)) {
-            let snake = prevSnakes[sId];
+      // Resolve collisions
+      const colRes = checkAndResolveCollisions(updatedSnakes, updatedFoods, currentBounds);
+      if (colRes.events.spills.length > 0) {
+        audio.playTailSpill();
+      }
 
-            if (snake.isBot) {
-              const aiDecision = updateBotAI(snake, prevSnakes, updatedFoods, currentBounds);
-              snake = { ...snake, target: aiDecision.target };
+      // Update refs & React state cleanly
+      snakesRef.current = colRes.updatedSnakes;
+      foodsRef.current = colRes.updatedFoods;
 
-              if (aiDecision.shouldSettleSentenceIndex !== undefined && snake.buildState.sentenceCandidates[0]) {
-                const res = settleSentence(snake, snake.buildState.sentenceCandidates[0], updatedFoods, currentBounds, theme);
-                snake = res.updatedSnake;
-                updatedFoods = res.updatedFoods;
-              } else if (aiDecision.shouldSettleWordIndex !== undefined && snake.buildState.candidates[0]) {
-                const res = settleWord(snake, snake.buildState.candidates[0], updatedFoods, currentBounds, theme);
-                snake = res.updatedSnake;
-                updatedFoods = res.updatedFoods;
-              }
-            }
-
-            const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds, prevSnakes);
-            const wordSearch = searchCandidates(movedSnake.heldFoods, theme);
-            const sentenceAnalysis = analyzeSentenceBuilding(movedSnake.heldFoods, theme);
-
-            let buildStatus = wordSearch.status;
-            if (sentenceAnalysis.isSentenceReady) {
-              buildStatus = 'SENTENCE_READY';
-            } else if (sentenceAnalysis.isSentenceBuilding) {
-              buildStatus = 'SENTENCE_BUILDING';
-            }
-
-            updatedSnakes[sId] = {
-              ...movedSnake,
-              buildState: {
-                status: buildStatus,
-                candidates: wordSearch.candidates,
-                sentenceCandidates: sentenceAnalysis.candidates,
-                version: (movedSnake.buildState.version || 0) + 1
-              }
-            };
-          }
-
-          // Resolve collisions
-          const colRes = checkAndResolveCollisions(updatedSnakes, updatedFoods, currentBounds);
-          if (colRes.events.spills.length > 0) {
-            audio.playTailSpill();
-          }
-
-          // Return final state updates to React
-          setSnakes(colRes.updatedSnakes);
-          return colRes.updatedFoods;
-        });
-
-        return prevSnakes;
-      });
+      setSnakes(colRes.updatedSnakes);
+      setFoods(colRes.updatedFoods);
 
       animationFrameId = requestAnimationFrame(loop);
     };
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, startedAt, bounds, theme]);
+  }, [phase, startedAt]);
 
   // Pointer target input
   const handlePointerTarget = (x: number, y: number) => {
     sendMoveIntent(x, y);
     const mySnakeId = `snake-${player.id}`;
-    setSnakes(prev => {
-      const s = prev[mySnakeId];
-      if (!s) return prev;
-      return { ...prev, [mySnakeId]: { ...s, target: { x, y } } };
-    });
+    const s = snakesRef.current[mySnakeId];
+    if (s) {
+      const updated = { ...snakesRef.current, [mySnakeId]: { ...s, target: { x, y } } };
+      snakesRef.current = updated;
+      setSnakes(updated);
+    }
   };
 
   // Settle Word (WORD_READY)
   const handleSettleWord = (candidate: CandidateWord) => {
     const mySnakeId = `snake-${player.id}`;
-    const mySnake = snakes[mySnakeId];
+    const mySnake = snakesRef.current[mySnakeId];
     if (!mySnake) return;
 
-    const settled = settleWord(mySnake, candidate, foods, bounds, theme);
-    setSnakes(prev => ({ ...prev, [mySnakeId]: settled.updatedSnake }));
-    setFoods(settled.updatedFoods);
+    const settled = settleWord(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
+    snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
+    foodsRef.current = settled.updatedFoods;
+    setSnakes(snakesRef.current);
+    setFoods(foodsRef.current);
   };
 
   // Settle Sentence (SENTENCE_READY)
   const handleSettleSentence = (candidate: CandidateSentence) => {
     const mySnakeId = `snake-${player.id}`;
-    const mySnake = snakes[mySnakeId];
+    const mySnake = snakesRef.current[mySnakeId];
     if (!mySnake) return;
 
-    const settled = settleSentence(mySnake, candidate, foods, bounds, theme);
-    setSnakes(prev => ({ ...prev, [mySnakeId]: settled.updatedSnake }));
-    setFoods(settled.updatedFoods);
+    const settled = settleSentence(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
+    snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
+    foodsRef.current = settled.updatedFoods;
+    setSnakes(snakesRef.current);
+    setFoods(foodsRef.current);
   };
 
   // Abandon / Spill Tail
   const handleSpillTail = () => {
     const mySnakeId = `snake-${player.id}`;
-    const res = triggerSelfTailSpill(mySnakeId, snakes, foods, bounds);
+    const res = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
+    snakesRef.current = res.updatedSnakes;
+    foodsRef.current = res.updatedFoods;
     setSnakes(res.updatedSnakes);
     setFoods(res.updatedFoods);
   };
