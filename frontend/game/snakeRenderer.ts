@@ -124,26 +124,17 @@ export function renderGame(
       }
     }
 
-    // Draw Tail Target Emblem (Easy to see and click)
+    // Draw Tail Warning Ring ONLY when holding foods (vulnerable to spill attack)
     const tailPoint = path[path.length - 1];
-    if (tailPoint) {
+    if (tailPoint && snake.heldFoods.length > 0) {
       ctx.save();
       ctx.beginPath();
-      ctx.arc(tailPoint.x, tailPoint.y, 22, 0, Math.PI * 2);
-      ctx.fillStyle = snake.heldFoods.length > 0 ? '#ef4444' : '#64748b';
-      ctx.globalAlpha = 0.85;
-      ctx.fill();
-
-      ctx.strokeStyle = '#ffffff';
+      ctx.arc(tailPoint.x, tailPoint.y, 20, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 3;
+      ctx.shadowColor = '#ef4444';
+      ctx.shadowBlur = 10;
       ctx.stroke();
-
-      // Tail Target Icon / Text
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px "Inter", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(snake.heldFoods.length > 0 ? 'TAIL' : 'TAIL', tailPoint.x, tailPoint.y);
       ctx.restore();
     }
 

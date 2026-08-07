@@ -115,9 +115,9 @@ const App: React.FC = () => {
     const now = Date.now();
     const allSnakes: Record<string, SnakeState> = {};
 
-    // Initial human snake with 6 body nodes
+    // Initial human snake with 24 body nodes (>7.5 head diameters)
     const mySnakeId = `snake-${player.id}`;
-    const initialPath = Array.from({ length: 16 }, (_, i) => ({ x: -i * 14, y: 0 }));
+    const initialPath = Array.from({ length: 24 }, (_, i) => ({ x: -i * 14, y: 0 }));
 
     allSnakes[mySnakeId] = {
       id: mySnakeId,
@@ -128,16 +128,16 @@ const App: React.FC = () => {
       direction: { x: 1, y: 0 },
       target: { x: 100, y: 0 },
       bodyPath: initialPath,
-      bodySegments: Array.from({ length: 6 }, (_, i) => ({
+      bodySegments: Array.from({ length: 8 }, (_, i) => ({
         id: `base-seg-${i}`,
         type: 'base',
         lengthUnits: 1,
         colorMode: 'player',
         color: player.color
       })),
-      baseLength: 6,
+      baseLength: 8,
       earnedLength: 0,
-      totalLength: 6,
+      totalLength: 8,
       currentSpeed: 180,
       heldFoods: [],
       buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
@@ -151,7 +151,7 @@ const App: React.FC = () => {
       const botId = `snake-${botDef.id}`;
       const startX = (index + 1) * 200 * (index % 2 === 0 ? 1 : -1);
       const startY = (index + 1) * 150 * (index % 2 === 0 ? -1 : 1);
-      const botPath = Array.from({ length: 16 }, (_, i) => ({ x: startX - i * 14, y: startY }));
+      const botPath = Array.from({ length: 24 }, (_, i) => ({ x: startX - i * 14, y: startY }));
 
       allSnakes[botId] = {
         id: botId,
@@ -162,16 +162,16 @@ const App: React.FC = () => {
         direction: { x: 1, y: 0 },
         target: { x: startX + 50, y: startY + 50 },
         bodyPath: botPath,
-        bodySegments: Array.from({ length: 6 }, (_, i) => ({
+        bodySegments: Array.from({ length: 8 }, (_, i) => ({
           id: `bot-base-seg-${i}`,
           type: 'base',
           lengthUnits: 1,
           colorMode: 'player',
           color: botDef.color
         })),
-        baseLength: 6,
+        baseLength: 8,
         earnedLength: 0,
-        totalLength: 6,
+        totalLength: 8,
         currentSpeed: 180,
         heldFoods: [],
         buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },

@@ -106,6 +106,7 @@ export function updateSnakePosition(
 }
 
 export function calculateCameraZoom(totalLength: number): number {
-  const targetZoom = 1.0 / (1.0 + Math.log10(1 + totalLength * 0.08));
-  return Math.max(0.55, Math.min(1.0, targetZoom));
+  // Initial zoom is 1.55 (large close-up view of snake & foods), scales to min 0.85
+  const targetZoom = 1.55 / (1.0 + Math.log10(1 + totalLength * 0.05));
+  return Math.max(0.85, Math.min(1.55, targetZoom));
 }
