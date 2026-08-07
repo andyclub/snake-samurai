@@ -87,13 +87,16 @@ export function renderGame(
     let segIdx = 0;
     for (let i = path.length - 1; i >= 0; i--) {
       const pt = path[i];
-      const isHead = (i === 0);
+      const isTail = (i === path.length - 1);
 
       // Determine segment color
       let segColor = snake.baseColor;
       let isGold = false;
 
-      if (snake.bodySegments.length > 0) {
+      if (isTail) {
+        segColor = '#facc15'; // Bright Gold/Yellow Tail Segment
+        isGold = true;
+      } else if (snake.bodySegments.length > 0) {
         const seg = snake.bodySegments[Math.min(segIdx, snake.bodySegments.length - 1)];
         if (seg.colorMode === 'gold') {
           segColor = SENTENCE_GOLD_PALETTE.primary;
@@ -105,37 +108,33 @@ export function renderGame(
 
       ctx.save();
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, isHead ? 20 : 16, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, isHead ? 20 : isTail ? 17 : 15, 0, Math.PI * 2);
       ctx.fillStyle = segColor;
 
-      if (isGold) {
-        ctx.shadowColor = SENTENCE_GOLD_PALETTE.glow;
-        ctx.shadowBlur = 18;
+      if (isGold || isTail) {
+        ctx.shadowColor = '#facc15';
+        ctx.shadowBlur = isTail ? 22 : 18;
       }
       ctx.fill();
 
-      ctx.strokeStyle = isGold ? '#ffffff' : 'rgba(0,0,0,0.3)';
-      ctx.lineWidth = isGold ? 3 : 2;
+      ctx.strokeStyle = isTail ? '#ffffff' : isGold ? '#ffffff' : 'rgba(0,0,0,0.3)';
+      ctx.lineWidth = isTail ? 3 : isGold ? 3 : 2;
       ctx.stroke();
+
+      // Sparkling core on tail tip
+      if (isTail) {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 12;
+        ctx.fill();
+      }
       ctx.restore();
 
-      if (i % 4 === 0 && segIdx < snake.bodySegments.length - 1) {
+      if (i % 3 === 0 && segIdx < snake.bodySegments.length - 1) {
         segIdx++;
       }
-    }
-
-    // Draw Tail Warning Ring ONLY when holding foods (vulnerable to spill attack)
-    const tailPoint = path[path.length - 1];
-    if (tailPoint && snake.heldFoods.length > 0) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(tailPoint.x, tailPoint.y, 20, 0, Math.PI * 2);
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = '#ef4444';
-      ctx.shadowBlur = 10;
-      ctx.stroke();
-      ctx.restore();
     }
 
     // Draw Samurai Back Flags

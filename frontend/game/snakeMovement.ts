@@ -77,7 +77,7 @@ export function updateSnakePosition(
 
   // Update body path using continuous distance-constraint kinematics (Nodes NEVER collapse!)
   const segmentDistance = 14;
-  const totalNodesNeeded = Math.max(24, 24 + snake.totalLength * 3);
+  const totalNodesNeeded = Math.max(9, 9 + snake.earnedLength * 3);
 
   const updatedPath: BodyPoint[] = [newHead];
   for (let i = 1; i < totalNodesNeeded; i++) {

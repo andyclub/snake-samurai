@@ -38,22 +38,27 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
   }
 
   if (exactMatches.length > 0) {
-    const candidates: CandidateWord[] = exactMatches.map(lex => {
-      const themeMatch = activeTheme === 'free' || lex.themes.includes(activeTheme) || (activeTheme === 'disaster' && Boolean(lex.disasterRelated));
-      return {
-        id: lex.id,
-        canonical: lex.canonical,
-        reading: lex.reading,
-        meaning: lex.meaning,
-        readingLength: calculateReadingLength(lex.reading),
-        themeMatch
-      };
-    });
+    // Single hiragana words (reading length === 1) do NOT score or complete
+    const validMatches = exactMatches.filter(lex => calculateReadingLength(lex.reading) >= 2);
 
-    return {
-      status: 'WORD_READY',
-      candidates
-    };
+    if (validMatches.length > 0) {
+      const candidates: CandidateWord[] = validMatches.map(lex => {
+        const themeMatch = activeTheme === 'free' || lex.themes.includes(activeTheme) || (activeTheme === 'disaster' && Boolean(lex.disasterRelated));
+        return {
+          id: lex.id,
+          canonical: lex.canonical,
+          reading: lex.reading,
+          meaning: lex.meaning,
+          readingLength: calculateReadingLength(lex.reading),
+          themeMatch
+        };
+      });
+
+      return {
+        status: 'WORD_READY',
+        candidates
+      };
+    }
   }
 
   if (prefixCount > 0) {

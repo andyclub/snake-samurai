@@ -115,9 +115,9 @@ const App: React.FC = () => {
     const now = Date.now();
     const allSnakes: Record<string, SnakeState> = {};
 
-    // Initial human snake with 24 body nodes (>7.5 head diameters)
+    // Initial human snake with 9 body nodes (= 3 head diameters ~ 120px)
     const mySnakeId = `snake-${player.id}`;
-    const initialPath = Array.from({ length: 24 }, (_, i) => ({ x: -i * 14, y: 0 }));
+    const initialPath = Array.from({ length: 9 }, (_, i) => ({ x: -i * 14, y: 0 }));
 
     allSnakes[mySnakeId] = {
       id: mySnakeId,
@@ -128,16 +128,16 @@ const App: React.FC = () => {
       direction: { x: 1, y: 0 },
       target: { x: 100, y: 0 },
       bodyPath: initialPath,
-      bodySegments: Array.from({ length: 8 }, (_, i) => ({
+      bodySegments: Array.from({ length: 3 }, (_, i) => ({
         id: `base-seg-${i}`,
         type: 'base',
         lengthUnits: 1,
         colorMode: 'player',
         color: player.color
       })),
-      baseLength: 8,
+      baseLength: 3,
       earnedLength: 0,
-      totalLength: 8,
+      totalLength: 3,
       currentSpeed: 180,
       heldFoods: [],
       buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
@@ -151,7 +151,7 @@ const App: React.FC = () => {
       const botId = `snake-${botDef.id}`;
       const startX = (index + 1) * 200 * (index % 2 === 0 ? 1 : -1);
       const startY = (index + 1) * 150 * (index % 2 === 0 ? -1 : 1);
-      const botPath = Array.from({ length: 24 }, (_, i) => ({ x: startX - i * 14, y: startY }));
+      const botPath = Array.from({ length: 9 }, (_, i) => ({ x: startX - i * 14, y: startY }));
 
       allSnakes[botId] = {
         id: botId,
@@ -162,16 +162,16 @@ const App: React.FC = () => {
         direction: { x: 1, y: 0 },
         target: { x: startX + 50, y: startY + 50 },
         bodyPath: botPath,
-        bodySegments: Array.from({ length: 8 }, (_, i) => ({
+        bodySegments: Array.from({ length: 3 }, (_, i) => ({
           id: `bot-base-seg-${i}`,
           type: 'base',
           lengthUnits: 1,
           colorMode: 'player',
           color: botDef.color
         })),
-        baseLength: 8,
+        baseLength: 3,
         earnedLength: 0,
-        totalLength: 8,
+        totalLength: 3,
         currentSpeed: 180,
         heldFoods: [],
         buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
@@ -221,11 +221,12 @@ const App: React.FC = () => {
         setBounds(currentBounds);
       }
 
-      // 2. Respawn foods that fall outside shrink bounds
+      // 2. Respawn foods: initial count was 16/player. When ground foods drop below 8/player, replenish to 8/player
       setFoods(prevFoods => {
         const nextFoods = { ...prevFoods };
         let modified = false;
 
+        // Respawn out-of-bounds ground foods
         for (const fId of Object.keys(nextFoods)) {
           const food = nextFoods[fId];
           if (food.state !== 'ground') continue;
@@ -238,6 +239,21 @@ const App: React.FC = () => {
             modified = true;
           }
         }
+
+        // Check if ground food count dropped below threshold (playerCount * 8)
+        const playerCount = Math.max(1, Object.keys(snakes).length);
+        const targetMin = playerCount * 8;
+        const groundCount = Object.values(nextFoods).filter(f => f.state === 'ground').length;
+
+        if (groundCount < targetMin) {
+          const missing = targetMin - groundCount;
+          for (let i = 0; i < missing; i++) {
+            const newId = `food-replenish-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
+            nextFoods[newId] = generateSingleFood(newId, currentBounds);
+          }
+          modified = true;
+        }
+
         return modified ? nextFoods : prevFoods;
       });
 

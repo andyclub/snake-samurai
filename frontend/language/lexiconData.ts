@@ -43,6 +43,7 @@ export const LEXICON_DATA: Lexeme[] = [
   { id: 'l13', canonical: '寝る', reading: 'ねる', partsOfSpeech: ['verb_v1'], meaning: 'Sleep', themes: ['life'], disasterRelated: false },
   { id: 'l14', canonical: '起きる', reading: 'おきる', partsOfSpeech: ['verb_v1'], meaning: 'Wake up', themes: ['life'], disasterRelated: false },
   { id: 'l15', canonical: '美味しい', reading: 'おいしい', partsOfSpeech: ['adj_i'], meaning: 'Delicious', themes: ['life'], disasterRelated: false },
+  { id: 'l16', canonical: '物', reading: 'もの', partsOfSpeech: ['noun'], meaning: 'Thing / Object', themes: ['life', 'study', 'free'], disasterRelated: false },
   { id: 'l16', canonical: '静か', reading: 'しずか', partsOfSpeech: ['adj_na'], meaning: 'Quiet', themes: ['life', 'study'], disasterRelated: false },
   { id: 'l17', canonical: '歩く', reading: 'あるく', partsOfSpeech: ['verb_v5k'], meaning: 'Walk', themes: ['life'], disasterRelated: false },
   { id: 'l18', canonical: '走る', reading: 'はしる', partsOfSpeech: ['verb_v5r'], meaning: 'Run', themes: ['life'], disasterRelated: false },

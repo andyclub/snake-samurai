@@ -159,8 +159,8 @@ export const GameBoard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Bottom Floating Candidates & Settle Bar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3 max-w-lg w-full px-4">
+      {/* Floating Candidate Prompt Bubble (Positioned fixed directly above Player Snake Head at Screen Center) */}
+      <div className="absolute top-[calc(50%-85px)] left-1/2 -translate-x-1/2 -translate-y-full z-30 flex flex-col items-center gap-3 max-w-md w-full px-4 pointer-events-auto">
         {/* Candidate Sentence Bubbles (GOLD ONLY) */}
         {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates.map(candidate => (
           <button

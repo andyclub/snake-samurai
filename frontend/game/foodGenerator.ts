@@ -70,7 +70,7 @@ export function generateSingleFood(id: string, bounds: ArenaBounds): FoodState {
 }
 
 export function generateInitialFoods(playerCount: number, bounds: ArenaBounds): Record<string, FoodState> {
-  const count = Math.max(8, playerCount * 8);
+  const count = Math.max(16, playerCount * 16);
   const foods: Record<string, FoodState> = {};
   for (let i = 0; i < count; i++) {
     const id = `food-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`;
