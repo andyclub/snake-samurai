@@ -75,24 +75,36 @@ export function updateSnakePosition(
   const newHead = { x: nextX, y: nextY };
   const newDirection = dist > 5 ? { x: vx / speed, y: vy / speed } : snake.direction;
 
-  // Update body path (guarantee at least 20 nodes = ~240px body length = >5 head diameters!)
-  const segmentDistance = 12; // Distance between body nodes
-  const totalNodesNeeded = Math.max(20, 20 + snake.totalLength * 3);
+  // Update body path using continuous distance-constraint kinematics (Nodes NEVER collapse!)
+  const segmentDistance = 14;
+  const totalNodesNeeded = Math.max(24, 24 + snake.totalLength * 3);
 
   const updatedPath: BodyPoint[] = [newHead];
-  let currentPos = newHead;
+  for (let i = 1; i < totalNodesNeeded; i++) {
+    const prevNode = updatedPath[i - 1];
+    const existingNode = snake.bodyPath[i];
 
-  for (let i = 1; i < snake.bodyPath.length && updatedPath.length < totalNodesNeeded; i++) {
-    const curr = snake.bodyPath[i];
-    if (Math.hypot(currentPos.x - curr.x, currentPos.y - curr.y) >= segmentDistance) {
-      updatedPath.push(curr);
-      currentPos = curr;
+    if (existingNode) {
+      const dx = existingNode.x - prevNode.x;
+      const dy = existingNode.y - prevNode.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 0.001) {
+        updatedPath.push({
+          x: prevNode.x + (dx / d) * segmentDistance,
+          y: prevNode.y + (dy / d) * segmentDistance
+        });
+      } else {
+        updatedPath.push({
+          x: prevNode.x - newDirection.x * segmentDistance,
+          y: prevNode.y - newDirection.y * segmentDistance
+        });
+      }
+    } else {
+      updatedPath.push({
+        x: prevNode.x - newDirection.x * segmentDistance,
+        y: prevNode.y - newDirection.y * segmentDistance
+      });
     }
-  }
-
-  while (updatedPath.length < totalNodesNeeded && updatedPath.length > 0) {
-    const last = updatedPath[updatedPath.length - 1];
-    updatedPath.push({ x: last.x - newDirection.x * segmentDistance, y: last.y - newDirection.y * segmentDistance });
   }
 
   return {

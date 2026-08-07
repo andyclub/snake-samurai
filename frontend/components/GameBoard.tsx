@@ -58,6 +58,15 @@ export const GameBoard: React.FC<Props> = ({
     const worldX = (touchX - canvas.width / 2) / cameraZoom + cameraX;
     const worldY = (touchY - canvas.height / 2) / cameraZoom + cameraY;
 
+    // Check if tapping player's own snake tail tip to spill foods
+    const tailPt = mySnake.bodyPath[mySnake.bodyPath.length - 1];
+    if (tailPt && Math.hypot(worldX - tailPt.x, worldY - tailPt.y) < 40 && mySnake.heldFoods.length > 0) {
+      onSpillTail();
+      setClickEffect({ x: worldX, y: worldY, time: Date.now() });
+      audio.playTailSpill();
+      return;
+    }
+
     onPointerTarget(worldX, worldY);
     setClickEffect({ x: worldX, y: worldY, time: Date.now() });
     audio.playPickup();

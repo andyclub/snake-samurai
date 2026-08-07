@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArenaMode, Theme } from '../types';
-import { Gamepad2, Play, Square, RefreshCw, ShieldAlert, Sparkles } from 'lucide-react';
+import { Gamepad2, Play, Square, Sparkles, ShieldAlert } from 'lucide-react';
 import { callRansenControl } from '../supabase';
 
 interface Props {
@@ -11,8 +11,6 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
   const [password, setPassword] = useState(() => localStorage.getItem('kazeabc_remote_password') || '');
   const [unlocked, setUnlocked] = useState(() => Boolean(localStorage.getItem('kazeabc_remote_password')));
   const [draftPassword, setDraftPassword] = useState('');
-  const [mode, setMode] = useState<ArenaMode>('free');
-  const [theme, setTheme] = useState<Theme>('free');
   const [message, setMessage] = useState('');
 
   if (!unlocked) {
@@ -21,26 +19,17 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            const trimmed = draftPassword.trim().toLowerCase();
-            const isLocalValid = trimmed === 'snake-samurai' || trimmed === 'samurai' || trimmed === 'kazeabc';
-            
-            if (isLocalValid) {
-              localStorage.setItem('kazeabc_remote_password', draftPassword);
-              setPassword(draftPassword);
-              setUnlocked(true);
-              setMessage('');
-              return;
-            }
+            if (!draftPassword.trim()) return;
 
             setMessage('正在验证密码…');
-            const res = await callRansenControl('POST', { command: 'check', password: draftPassword });
+            const res = await callRansenControl('POST', { command: 'check', password: draftPassword.trim() });
             if (res.ok) {
-              localStorage.setItem('kazeabc_remote_password', draftPassword);
-              setPassword(draftPassword);
+              localStorage.setItem('kazeabc_remote_password', draftPassword.trim());
+              setPassword(draftPassword.trim());
               setUnlocked(true);
               setMessage('');
             } else {
-              setMessage(res.message || '密码错误（密码为：snake-samurai）');
+              setMessage(res.message || '密码错误');
             }
           }}
           className="w-full max-w-sm rounded-3xl border border-white/10 bg-slate-900 p-7 shadow-2xl space-y-4"
@@ -54,7 +43,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
             type="password"
             value={draftPassword}
             onChange={(e) => setDraftPassword(e.target.value)}
-            placeholder="15 位访问密码"
+            placeholder="访问密码"
             className="w-full rounded-xl bg-black/40 border border-white/15 px-4 py-3 text-white outline-none focus:border-cyan-400"
           />
           <button className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 font-black text-slate-950">
@@ -78,7 +67,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 p-6 text-white max-w-lg mx-auto space-y-6">
+    <main className="min-h-screen bg-slate-950 p-6 text-white max-w-lg mx-auto space-y-6 select-none">
       <div className="flex items-center justify-between border-b border-white/10 pb-4">
         <div className="flex items-center gap-3">
           <Gamepad2 className="w-8 h-8 text-cyan-400" />

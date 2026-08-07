@@ -1,11 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.5";
 
-const PASSWORD_HASHES = new Set([
-  "7eea81b2d4da5faaa2b1f9cabb94617298f8c9796e6b51d48dcbaef3731e8e47",
-  "4af8629140d596e17183790488c155ebd60f791dbf71713b75c9ffe3f1c2d65e",
-  "210f485812781758baa7bf78af16ecbd06b3dbc524d379b472ee6fec31aca9ee",
-  "2df84a679ae22f29fcf4db23ec02d318e61e16e1bbe36a7aa3136a516febb611"
-]);
+const PASSWORD_HASH = "65d898bade021467123809feee735e340fae0786e316c5465329fd7db2446a54"; // sha256("jec")
 const SEAFOOD = ["海老", "帆立", "鮪", "真鯛", "烏賊", "蛸", "蟹", "鮭", "牡蠣", "雲丹", "甘海老", "鰹"];
 const allowedOrigins = new Set(["https://g.kazeabc.com", "http://localhost:5173"]);
 const cors = (origin: string | null) => ({
@@ -120,7 +115,7 @@ Deno.serve(async (req) => {
   const isPublicStart = command === "on" && body.public === true;
   const isPublicClaim = command === "claim_start" && body.public === true;
   const isPublicJoin = command === "join_lobby" && body.public === true;
-  if (!isPublicStart && !isPublicClaim && !isPublicJoin && !PASSWORD_HASHES.has(await sha256(String(body.password || "").trim().toLowerCase()))) {
+  if (!isPublicStart && !isPublicClaim && !isPublicJoin && await sha256(String(body.password || "").trim()) !== PASSWORD_HASH) {
     return new Response(JSON.stringify({ ok: false, code: "INVALID_PASSWORD", message: "遥控器密码错误" }), { status: 401, headers });
   }
 
