@@ -137,66 +137,67 @@ export function renderGame(
       }
     }
 
-    // Draw Samurai Back Flags (Sashimono 指物) for completed Words & Sentences
-    let flagNodeIndex = 6;
+    // Draw Samurai Back Flags (Sashimono 指物) for ALL completed Words & Sentences
+    let currentNodeIndex = 0;
     for (const seg of snake.bodySegments) {
-      if (!seg.flag) {
-        flagNodeIndex += 3;
-        continue; // Skip base segments without flags, do NOT break!
+      const segNodeCount = (seg.lengthUnits || 1) * 3;
+
+      if (seg.flag) {
+        // Position flag at middle node of this segment in bodyPath
+        const targetNodeIdx = Math.min(path.length - 1, currentNodeIndex + Math.floor(segNodeCount / 2));
+        const flagPt = path[targetNodeIdx];
+
+        if (flagPt) {
+          const isSentenceFlag = seg.flag.type === 'sentence';
+          const text = seg.flag.text;
+
+          ctx.save();
+          ctx.translate(flagPt.x, flagPt.y);
+
+          ctx.font = `bold ${isSentenceFlag ? 13 : 11}px "Noto Sans JP", sans-serif`;
+          const textWidth = ctx.measureText(text).width;
+
+          const poleHeight = isSentenceFlag ? 62 : 44;
+          const flagWidth = Math.max(isSentenceFlag ? 120 : 75, textWidth + 18);
+          const flagHeight = isSentenceFlag ? 30 : 22;
+
+          // Flag pole
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(0, -poleHeight);
+          ctx.strokeStyle = isSentenceFlag ? '#fbbf24' : '#38bdf8';
+          ctx.lineWidth = isSentenceFlag ? 4 : 3;
+          ctx.stroke();
+
+          // Flag Top Crest (Golden Orb)
+          ctx.beginPath();
+          ctx.arc(0, -poleHeight, isSentenceFlag ? 6 : 4, 0, Math.PI * 2);
+          ctx.fillStyle = isSentenceFlag ? '#facc15' : '#38bdf8';
+          ctx.fill();
+
+          // Flag Banner Body (Traditional Sashimono Banner)
+          ctx.beginPath();
+          ctx.rect(0, -poleHeight + 4, flagWidth, flagHeight);
+          ctx.fillStyle = isSentenceFlag ? SENTENCE_GOLD_PALETTE.primary : '#0f172a';
+          ctx.shadowColor = isSentenceFlag ? SENTENCE_GOLD_PALETTE.glow : 'rgba(56, 189, 248, 0.7)';
+          ctx.shadowBlur = isSentenceFlag ? 20 : 10;
+          ctx.fill();
+
+          ctx.strokeStyle = isSentenceFlag ? '#ffffff' : '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Flag Text
+          ctx.fillStyle = isSentenceFlag ? '#000000' : '#ffffff';
+          ctx.font = `bold ${isSentenceFlag ? 13 : 11}px "Noto Sans JP", sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, 8, -poleHeight + 4 + flagHeight / 2);
+          ctx.restore();
+        }
       }
 
-      if (flagNodeIndex >= path.length) break;
-
-      const flagPt = path[flagNodeIndex];
-      const isSentenceFlag = seg.flag.type === 'sentence';
-
-      ctx.save();
-      ctx.translate(flagPt.x, flagPt.y);
-
-      // Dynamic text measurement
-      const text = seg.flag.text;
-      ctx.font = `bold ${isSentenceFlag ? 13 : 11}px "Noto Sans JP", sans-serif`;
-      const textWidth = ctx.measureText(text).width;
-
-      const poleHeight = isSentenceFlag ? 58 : 42;
-      const flagWidth = Math.max(isSentenceFlag ? 110 : 70, textWidth + 18);
-      const flagHeight = isSentenceFlag ? 28 : 22;
-
-      // Flag pole
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(0, -poleHeight);
-      ctx.strokeStyle = isSentenceFlag ? '#fbbf24' : '#38bdf8';
-      ctx.lineWidth = isSentenceFlag ? 4 : 3;
-      ctx.stroke();
-
-      // Flag Top Crest (Golden Orb)
-      ctx.beginPath();
-      ctx.arc(0, -poleHeight, isSentenceFlag ? 6 : 4, 0, Math.PI * 2);
-      ctx.fillStyle = isSentenceFlag ? '#facc15' : '#38bdf8';
-      ctx.fill();
-
-      // Flag Banner Body (Traditional Sashimono)
-      ctx.beginPath();
-      ctx.rect(0, -poleHeight + 4, flagWidth, flagHeight);
-      ctx.fillStyle = isSentenceFlag ? SENTENCE_GOLD_PALETTE.primary : '#0f172a';
-      ctx.shadowColor = isSentenceFlag ? SENTENCE_GOLD_PALETTE.glow : 'rgba(56, 189, 248, 0.6)';
-      ctx.shadowBlur = isSentenceFlag ? 18 : 8;
-      ctx.fill();
-
-      ctx.strokeStyle = isSentenceFlag ? '#ffffff' : '#38bdf8';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Flag Text
-      ctx.fillStyle = isSentenceFlag ? '#000000' : '#ffffff';
-      ctx.font = `bold ${isSentenceFlag ? 13 : 11}px "Noto Sans JP", sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 7, -poleHeight + 4 + flagHeight / 2);
-      ctx.restore();
-
-      flagNodeIndex += 6;
+      currentNodeIndex += segNodeCount;
     }
 
     // Draw Snake Head (Samurai Helmet & Eyes)
