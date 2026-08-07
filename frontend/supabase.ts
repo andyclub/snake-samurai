@@ -11,7 +11,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 
 const questionRequests = new Map<string, Promise<Question[]>>();
 
-export const loadRansenQuestions = (levels?: string[]) => {
+export const loadSnakeSamuraiQuestions = (levels?: string[]) => {
   const cacheKey = levels?.length ? [...levels].sort().join('|') : 'all';
   const existing = questionRequests.get(cacheKey);
   if (existing) return existing;
@@ -19,9 +19,15 @@ export const loadRansenQuestions = (levels?: string[]) => {
   const request = (async () => {
     const rows: any[] = [];
     const pageSize = 1000;
+    
+    // Attempt querying snake_samurai_questions first, falling back to ransen_questions if needed
+    let targetTable = 'snake_samurai_questions';
+    const { error: testErr } = await supabase.from(targetTable).select('id').limit(1);
+    if (testErr) targetTable = 'ransen_questions';
+
     for (let from = 0; ; from += pageSize) {
       let query = supabase
-        .from('ransen_questions')
+        .from(targetTable)
         .select('id,text,options,correct_index,question_type,level')
         .eq('active', true)
         .order('id')
@@ -46,23 +52,35 @@ export const loadRansenQuestions = (levels?: string[]) => {
   return request;
 };
 
-export const callRansenControl = async (method: 'GET' | 'POST', body?: Record<string, unknown>, roomId = 'main') => {
+export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Record<string, unknown>, roomId = 'main') => {
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control?room=${encodeURIComponent(roomId)}`, {
+    // Attempt snake-samurai-control endpoint first, with fallback to ransen-control
+    let endpoint = `${SUPABASE_URL}/functions/v1/snake-samurai-control?room=${encodeURIComponent(roomId)}`;
+    let response = await fetch(endpoint, {
       method,
       headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     });
+
+    if (response.status === 404) {
+      endpoint = `${SUPABASE_URL}/functions/v1/ransen-control?room=${encodeURIComponent(roomId)}`;
+      response = await fetch(endpoint, {
+        method,
+        headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    }
+
     const data = await response.json().catch(() => ({ ok: false, message: '遥控服务响应异常' }));
     return { ...data, status: response.status } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
   } catch (error) {
-    console.error('Ransen control request failed', error);
+    console.error('Snake Samurai control request failed', error);
     return { ok: false, status: 0, message: '云端连接失败，请重试' };
   }
 };
 
-export const persistRansenSnapshot = async (snapshot: Record<string, any>, roomId = 'main') => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control`, {
+export const persistSnakeSamuraiSnapshot = async (snapshot: Record<string, any>, roomId = 'main') => {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/snake-samurai-control`, {
     method: 'PUT',
     headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ phase: snapshot.phase === 'THEATER' ? 'THEATER' : 'PLAYING', snapshot, roomId }),
@@ -70,8 +88,8 @@ export const persistRansenSnapshot = async (snapshot: Record<string, any>, roomI
   return response.ok;
 };
 
-export const claimRansenStart = async (snapshot: Record<string, any>, roomId = 'main') => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control`, {
+export const claimSnakeSamuraiStart = async (snapshot: Record<string, any>, roomId = 'main') => {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/snake-samurai-control`, {
     method: 'POST',
     headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ command: 'claim_start', public: true, snapshot, roomId }),
@@ -80,8 +98,8 @@ export const claimRansenStart = async (snapshot: Record<string, any>, roomId = '
   return { ...data, status: response.status } as { ok: boolean; status: number; code?: string; message?: string; startedAt?: number; serverNow?: string; snapshot?: Record<string, any> };
 };
 
-export const registerRansenPlayer = async (player: Record<string, any>, roomId = 'main') => {
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control`, {
+export const registerSnakeSamuraiPlayer = async (player: Record<string, any>, roomId = 'main') => {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/snake-samurai-control`, {
     method: 'POST',
     headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify({ command: 'join_lobby', public: true, player, roomId }),

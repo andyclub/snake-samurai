@@ -6,7 +6,7 @@ import LobbyScreen from './components/LobbyScreen';
 import TheaterScreen from './components/TheaterScreen';
 import RemoteControl from './components/RemoteControl';
 import { audio } from './audio';
-import { useRansenMultiplayer } from './useRansenMultiplayer';
+import { useSnakeSamuraiMultiplayer } from './useSnakeSamuraiMultiplayer';
 import { generateInitialFoods, generateSingleFood } from './game/foodGenerator';
 import { updateSnakePosition } from './game/snakeMovement';
 import { checkAndResolveCollisions, triggerSelfTailSpill } from './game/collisionEngine';
@@ -70,7 +70,7 @@ const App: React.FC = () => {
   };
 
   // Multiplayer Hook
-  const { isHost, sendMoveIntent, broadcastSnapshot } = useRansenMultiplayer({
+  const { isHost, sendMoveIntent, broadcastSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: 'main',
     player,
     onCommand: async (cmd, payload) => {

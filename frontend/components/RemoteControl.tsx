@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArenaMode, Theme } from '../types';
 import { Gamepad2, Play, Square, Sparkles, ShieldAlert } from 'lucide-react';
-import { callRansenControl } from '../supabase';
+import { callSnakeSamuraiControl } from '../supabase';
 
 interface Props {
   onCommand: (command: string, payload: Record<string, any>) => Promise<{ ok: boolean; message?: string }>;
@@ -32,7 +32,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
             }
 
             setMessage('正在验证密码…');
-            const res = await callRansenControl('POST', { command: 'check', password: pass });
+            const res = await callSnakeSamuraiControl('POST', { command: 'check', password: pass });
             if (res.ok) {
               localStorage.setItem('kazeabc_remote_password', pass);
               setPassword(pass);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { ArenaState, GamePhase, MatchHistory, Player, SnakeState } from './types';
-import { callRansenControl, supabase } from './supabase';
+import { callSnakeSamuraiControl, supabase } from './supabase';
 
 export type Snapshot = ArenaState;
 type Connection = 'connecting' | 'online' | 'error';
@@ -17,7 +17,7 @@ interface Options {
   getSnapshot: () => Snapshot;
 }
 
-export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, onMoveIntent, getSnapshot }: Options) {
+export function useSnakeSamuraiMultiplayer({ roomId, player, onCommand, onSnapshot, onMoveIntent, getSnapshot }: Options) {
   const [userId, setUserId] = useState<string>();
   const [isHost, setIsHost] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
@@ -39,7 +39,7 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
         if (cancelled) return;
         setUserId(id);
 
-        const control = await callRansenControl('GET', undefined, roomId);
+        const control = await callSnakeSamuraiControl('GET', undefined, roomId);
         if (control.ok && control.phase === GamePhase.LOBBY) {
           callbacks.current.onCommand('on', { serverState: true, lobbyEndsAt: control.lobbyEndsAt });
         }
@@ -86,7 +86,7 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
 
         channelRef.current = channel;
       } catch (err) {
-        console.error('Multiplayer connection failed', err);
+        console.error('Snake Samurai multiplayer connection failed', err);
         setConnection('error');
       }
     };
@@ -100,22 +100,24 @@ export function useRansenMultiplayer({ roomId, player, onCommand, onSnapshot, on
   }, [roomId, player.id, player.name, player.color]);
 
   const sendMoveIntent = useCallback((targetX: number, targetY: number) => {
-    if (!userId || !channelRef.current) return;
-    channelRef.current.send({
-      type: 'broadcast',
-      event: 'move_intent',
-      payload: { playerId: userId, targetX, targetY, timestamp: Date.now() }
-    }).catch(() => {});
-  }, [userId]);
+    if (channelRef.current && connection === 'online') {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'move_intent',
+        payload: { playerId: userId || player.id, targetX, targetY }
+      });
+    }
+  }, [connection, userId, player.id]);
 
   const broadcastSnapshot = useCallback((snapshot: Snapshot) => {
-    if (!hostRef.current || !channelRef.current) return;
-    channelRef.current.send({
-      type: 'broadcast',
-      event: 'snapshot',
-      payload: { snapshot }
-    }).catch(() => {});
-  }, []);
+    if (channelRef.current && connection === 'online' && hostRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'snapshot',
+        payload: { snapshot }
+      });
+    }
+  }, [connection]);
 
   return {
     userId,
