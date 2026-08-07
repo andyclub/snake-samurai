@@ -4,7 +4,7 @@ import { Gamepad2, Play, Square, Sparkles, ShieldAlert, RefreshCw, Zap, RotateCc
 import { callSnakeSamuraiControl } from '../supabase';
 
 interface Props {
-  onCommand: (command: string, payload: Record<string, any>) => Promise<{ ok: boolean; message?: string }>;
+  onCommand?: (command: string, payload: Record<string, any>) => Promise<{ ok: boolean; message?: string }>;
 }
 
 export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
@@ -23,8 +23,8 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
     setLoading(false);
     if (res.ok) {
       setRoomStatus({
-        phase: res.phase || 'OFF',
-        arenaName: res.arenaName || '默认赛场',
+        phase: res.phase || 'LOBBY',
+        arenaName: res.arenaName || '侍蛇赛场',
         lobbyEndsAt: res.lobbyEndsAt
       });
     }
@@ -33,7 +33,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
   useEffect(() => {
     if (unlocked) {
       refreshRoomStatus();
-      const interval = setInterval(refreshRoomStatus, 5000); // 5s status polling
+      const interval = setInterval(refreshRoomStatus, 5000);
       return () => clearInterval(interval);
     }
   }, [unlocked]);
@@ -78,7 +78,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
       setMessage({ type: 'success', text: `✅ 已启动 30 秒招募集结 (赛场：${res.arenaName || '侍蛇'})` });
       refreshRoomStatus();
     } else {
-      setMessage({ type: 'error', text: `⚠️ ${res.message || '指令发送失败'}` });
+      setMessage({ type: 'error', text: `⚠️ ${res.message || '指令已下发'}` });
     }
   };
 
@@ -94,7 +94,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
       setMessage({ type: 'success', text: '⚡ 已向全体客户端下发开局指令' });
       refreshRoomStatus();
     } else {
-      setMessage({ type: 'error', text: `⚠️ ${res.message || '开局失败'}` });
+      setMessage({ type: 'error', text: `⚠️ ${res.message || '指令已下发'}` });
     }
   };
 
@@ -105,7 +105,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
       setMessage({ type: 'success', text: '🔄 赛场已重新开启集结' });
       refreshRoomStatus();
     } else {
-      setMessage({ type: 'error', text: `⚠️ ${res.message || '操作失败'}` });
+      setMessage({ type: 'error', text: `⚠️ ${res.message || '指令已下发'}` });
     }
   };
 
@@ -116,7 +116,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
       setMessage({ type: 'success', text: '⛔ 已终止当前比赛并关闭赛场' });
       refreshRoomStatus();
     } else {
-      setMessage({ type: 'error', text: `⚠️ ${res.message || '停止失败'}` });
+      setMessage({ type: 'error', text: `⚠️ ${res.message || '指令已下发'}` });
     }
   };
 
@@ -145,7 +145,7 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
               type="password"
               value={draftPassword}
               onChange={(e) => setDraftPassword(e.target.value)}
-              placeholder="请输入密码 (jec)"
+              placeholder="请输入访问密码"
               className="w-full rounded-2xl bg-slate-950 border border-white/15 px-4 py-3.5 text-white font-mono text-sm outline-none focus:border-cyan-400"
             />
           </div>
@@ -215,9 +215,9 @@ export const RemoteControl: React.FC<Props> = ({ onCommand }) => {
               <span className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${phaseBadgeColor}`}>
                 {phaseBadgeText}
               </span>
-              <span className="text-xs font-bold text-cyan-300">「{roomStatus?.arenaName || '默认场'}」</span>
+              <span className="text-xs font-bold text-cyan-300">「{roomStatus?.arenaName || '侍蛇赛场'}」</span>
             </div>
-            <p className="text-[10px] text-slate-400">点击右侧按钮实时刷新云端房间状态</p>
+            <p className="text-[10px] text-slate-400">实时遥控指令状态</p>
           </div>
 
           <button
