@@ -3,6 +3,9 @@ import { ArenaBounds, BodyPoint, SnakeState } from '../types';
 export const BASE_SPEED = 180; // pixels per second
 export const MIN_SPEED_RATIO = 0.35;
 
+// Global map to track sticking duration between pairs of snakes to prevent lockups (>5s auto bounce apart)
+const stickingMap = new Map<string, number>();
+
 export function calculateSnakeSpeed(earnedLengthUnits: number, heldFoodCount: number = 0): number {
   const baseSpeedReduction = Math.pow(0.91, earnedLengthUnits);
   const heldFoodReduction = Math.pow(0.97, heldFoodCount); // 3% slower per held food
@@ -43,21 +46,43 @@ export function updateSnakePosition(
   if (nextY <= minY) { nextY = minY; onBoundary = true; }
   if (nextY >= maxY) { nextY = maxY; onBoundary = true; }
 
-  // SOLID PHYSICAL BODY COLLISION (Cannot pass through other snakes' main body or self body)
-  // NOTE: Exclude the last 5 tail nodes of enemy snakes so head can reach tail for battle attacks!
+  // SOLID PHYSICAL BODY COLLISION
+  // Rule 1: A snake IGNORES its own body collision when U-turning/turning around!
+  // Rule 2: 5-second anti-lockup bounce when stuck with an enemy snake!
   const collisionRadius = 26;
   let isBlocked = false;
+  const now = Date.now();
 
   for (const otherId of Object.keys(allSnakes)) {
+    if (otherId === snake.id) continue; // IGNORE SELF-COLLISION for smooth U-turns!
+
     const otherSnake = allSnakes[otherId];
     if (!otherSnake || !otherSnake.connected) continue;
 
-    const path = otherSnake.bodyPath;
-    const startIndex = (otherId === snake.id) ? 6 : 0;
-    // Exclude tail nodes (last 5 nodes) from solid block so attacker head can reach tail
-    const endIndex = (otherId === snake.id) ? path.length : Math.max(0, path.length - 5);
+    // Check sticking time with enemy snake
+    const pairKey = [snake.id, otherId].sort().join(':');
+    const headDist = Math.hypot(snake.head.x - otherSnake.head.x, snake.head.y - otherSnake.head.y);
 
-    for (let i = startIndex; i < endIndex; i++) {
+    if (headDist < 45) {
+      const stuckTime = stickingMap.get(pairKey) || now;
+      if (!stickingMap.has(pairKey)) stickingMap.set(pairKey, now);
+
+      // If stuck for > 5000ms (5 seconds), bounce apart!
+      if (now - stuckTime > 5000) {
+        const bounceAngle = Math.atan2(snake.head.y - otherSnake.head.y, snake.head.x - otherSnake.head.x) || (Math.random() * Math.PI * 2);
+        nextX += Math.cos(bounceAngle) * 80;
+        nextY += Math.sin(bounceAngle) * 80;
+        stickingMap.delete(pairKey);
+      }
+    } else {
+      stickingMap.delete(pairKey);
+    }
+
+    // Check collision with enemy snake body
+    const path = otherSnake.bodyPath;
+    const endIndex = Math.max(0, path.length - 5); // Exclude tail tip nodes for attacks
+
+    for (let i = 0; i < endIndex; i++) {
       const node = path[i];
       const d = Math.hypot(nextX - node.x, nextY - node.y);
       if (d < collisionRadius) {
@@ -66,8 +91,8 @@ export function updateSnakePosition(
       }
     }
 
-    // Check collision with other snake's held foods
-    if (!isBlocked && otherId !== snake.id && otherSnake.heldFoods) {
+    // Check collision with enemy snake's held foods
+    if (!isBlocked && otherSnake.heldFoods) {
       for (let i = 0; i < otherSnake.heldFoods.length; i++) {
         const fx = otherSnake.head.x + otherSnake.direction.x * 26 - otherSnake.direction.x * (i * 24);
         const fy = otherSnake.head.y + otherSnake.direction.y * 26 - otherSnake.direction.y * (i * 24);
@@ -83,7 +108,7 @@ export function updateSnakePosition(
   }
 
   if (isBlocked) {
-    // Stop forward movement into the solid obstacle body
+    // Stop forward movement into solid obstacle body
     nextX = snake.head.x;
     nextY = snake.head.y;
   }
@@ -91,7 +116,7 @@ export function updateSnakePosition(
   const newHead = { x: nextX, y: nextY };
   const newDirection = dist > 5 ? { x: vx / speed, y: vy / speed } : snake.direction;
 
-  // Update body path using continuous distance-constraint kinematics (Nodes NEVER collapse!)
+  // Update body path using continuous distance-constraint kinematics
   const segmentDistance = 14;
   const totalNodesNeeded = Math.max(9, 9 + snake.earnedLength * 3);
 

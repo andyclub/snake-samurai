@@ -50,7 +50,7 @@ export function renderGame(
   ctx.lineWidth = 6;
   ctx.strokeRect(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
 
-  // 2. Draw Ground Foods (NO GOLD!)
+  // 2. Draw Ground Foods
   for (const fId of Object.keys(foods)) {
     const food = foods[fId];
     if (food.state !== 'ground') continue;
@@ -80,12 +80,10 @@ export function renderGame(
     const snake = snakes[sId];
     if (!snake.connected || snake.bodyPath.length === 0) continue;
 
-    // Draw Body Segments along path
     const path = snake.bodyPath;
-    let pathIdx = 0;
-
-    // Group segments
     let segIdx = 0;
+
+    // Draw Body Segments along path
     for (let i = path.length - 1; i >= 0; i--) {
       const pt = path[i];
       const isTail = (i === path.length - 1);
@@ -100,17 +98,17 @@ export function renderGame(
         isGold = true;
       } else if (snake.bodySegments.length > 0) {
         const seg = snake.bodySegments[Math.min(segIdx, snake.bodySegments.length - 1)];
-        if (seg.colorMode === 'gold') {
+        if (seg && seg.colorMode === 'gold') {
           segColor = SENTENCE_GOLD_PALETTE.primary;
           isGold = true;
-        } else if (seg.colorMode === 'food') {
+        } else if (seg && seg.colorMode === 'food') {
           segColor = seg.color;
         }
       }
 
       ctx.save();
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, isHead ? 20 : isTail ? 17 : 15, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, isHead ? 22 : isTail ? 17 : 15, 0, Math.PI * 2);
       ctx.fillStyle = segColor;
 
       if (isGold || isTail) {
@@ -139,10 +137,15 @@ export function renderGame(
       }
     }
 
-    // Draw Samurai Back Flags
+    // Draw Samurai Back Flags (Sashimono 指物) for completed Words & Sentences
     let flagNodeIndex = 6;
     for (const seg of snake.bodySegments) {
-      if (!seg.flag || flagNodeIndex >= path.length) break;
+      if (!seg.flag) {
+        flagNodeIndex += 3;
+        continue; // Skip base segments without flags, do NOT break!
+      }
+
+      if (flagNodeIndex >= path.length) break;
 
       const flagPt = path[flagNodeIndex];
       const isSentenceFlag = seg.flag.type === 'sentence';
@@ -150,27 +153,38 @@ export function renderGame(
       ctx.save();
       ctx.translate(flagPt.x, flagPt.y);
 
-      // Flag pole
-      const poleHeight = isSentenceFlag ? 55 : 38;
-      const flagWidth = isSentenceFlag ? 110 : 70;
-      const flagHeight = isSentenceFlag ? 28 : 20;
+      // Dynamic text measurement
+      const text = seg.flag.text;
+      ctx.font = `bold ${isSentenceFlag ? 13 : 11}px "Noto Sans JP", sans-serif`;
+      const textWidth = ctx.measureText(text).width;
 
+      const poleHeight = isSentenceFlag ? 58 : 42;
+      const flagWidth = Math.max(isSentenceFlag ? 110 : 70, textWidth + 18);
+      const flagHeight = isSentenceFlag ? 28 : 22;
+
+      // Flag pole
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(0, -poleHeight);
-      ctx.strokeStyle = isSentenceFlag ? '#fbbf24' : '#e2e8f0';
+      ctx.strokeStyle = isSentenceFlag ? '#fbbf24' : '#38bdf8';
       ctx.lineWidth = isSentenceFlag ? 4 : 3;
       ctx.stroke();
 
-      // Flag Banner
+      // Flag Top Crest (Golden Orb)
       ctx.beginPath();
-      ctx.rect(0, -poleHeight, flagWidth, flagHeight);
-      ctx.fillStyle = isSentenceFlag ? SENTENCE_GOLD_PALETTE.primary : '#1e293b';
-      ctx.shadowColor = isSentenceFlag ? SENTENCE_GOLD_PALETTE.glow : 'rgba(0,0,0,0.5)';
-      ctx.shadowBlur = isSentenceFlag ? 15 : 6;
+      ctx.arc(0, -poleHeight, isSentenceFlag ? 6 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = isSentenceFlag ? '#facc15' : '#38bdf8';
       ctx.fill();
 
-      ctx.strokeStyle = isSentenceFlag ? '#ffffff' : '#94a3b8';
+      // Flag Banner Body (Traditional Sashimono)
+      ctx.beginPath();
+      ctx.rect(0, -poleHeight + 4, flagWidth, flagHeight);
+      ctx.fillStyle = isSentenceFlag ? SENTENCE_GOLD_PALETTE.primary : '#0f172a';
+      ctx.shadowColor = isSentenceFlag ? SENTENCE_GOLD_PALETTE.glow : 'rgba(56, 189, 248, 0.6)';
+      ctx.shadowBlur = isSentenceFlag ? 18 : 8;
+      ctx.fill();
+
+      ctx.strokeStyle = isSentenceFlag ? '#ffffff' : '#38bdf8';
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -179,7 +193,7 @@ export function renderGame(
       ctx.font = `bold ${isSentenceFlag ? 13 : 11}px "Noto Sans JP", sans-serif`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      ctx.fillText(seg.flag.text, 6, -poleHeight + flagHeight / 2);
+      ctx.fillText(text, 7, -poleHeight + 4 + flagHeight / 2);
       ctx.restore();
 
       flagNodeIndex += 6;
@@ -222,7 +236,7 @@ export function renderGame(
     ctx.fill();
     ctx.restore();
 
-    // Draw Mouth Held Foods Chain (1st at mouth, 2nd+ folds back opposite to movement direction with swaying animation)
+    // Draw Mouth Held Foods Chain
     if (snake.heldFoods.length > 0) {
       const time = Date.now() / 150;
       const dirX = snake.direction.x || 1;
@@ -257,11 +271,9 @@ export function renderGame(
         let posX: number, posY: number;
 
         if (idx === 0) {
-          // 1st food: right at mouth
           posX = head.x + dirX * 26;
           posY = head.y + dirY * 26;
         } else {
-          // 2nd food and onwards: folds back in opposite direction of movement with swaying wobble
           const wobble = Math.sin(time * 3.5 + idx * 0.9) * (5 + idx * 1.5);
           posX = head.x + dirX * 26 - dirX * (idx * 24) + perpX * wobble;
           posY = head.y + dirY * 26 - dirY * (idx * 24) + perpY * wobble;
@@ -288,14 +300,14 @@ export function renderGame(
       });
     }
 
-    // Draw Nickname above head
+    // Draw Nickname above head (displays earned length!)
     ctx.save();
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 13px "Inter", sans-serif';
     ctx.textAlign = 'center';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 6;
-    ctx.fillText(`${snake.nickname} (${snake.totalLength})`, head.x, head.y - 32);
+    ctx.fillText(`${snake.nickname} (+${snake.earnedLength})`, head.x, head.y - 32);
     ctx.restore();
   }
 
