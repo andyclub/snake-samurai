@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArenaBounds, CandidateSentence, CandidateWord, FoodState, Player, SnakeState, Theme } from '../types';
+import { ArenaBounds, CandidateSentence, CandidateWord, FoodState, Language, Player, SnakeState, Theme } from '../types';
 import { calculateCameraZoom } from '../game/snakeMovement';
 import { renderGame } from '../game/snakeRenderer';
 import { searchCandidates } from '../language/trieEngine';
 import { analyzeSentenceBuilding } from '../language/sentenceEngine';
 import { audio } from '../audio';
-import { Trophy, Flame, RotateCcw, Sparkles } from 'lucide-react';
+import { saveLanguagePreference } from '../i18n';
+import { Trophy, Sparkles, Globe, HelpCircle, QrCode, X } from 'lucide-react';
 
 interface Props {
   player: Player;
@@ -15,12 +16,17 @@ interface Props {
   theme: Theme;
   mode: string;
   timeRemainingSeconds: number;
+  lang: Language;
+  onSelectLanguage: (lang: Language) => void;
   onPointerTarget: (x: number, y: number) => void;
   onSettleWord: (candidate: CandidateWord) => void;
   onSettleSentence: (candidate: CandidateSentence) => void;
   onSpillTail: () => void;
   t: (key: string) => string;
 }
+
+const INVITE_URL = 'https://h.kazeabc.com';
+const QR_IMAGE_URL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(INVITE_URL)}&color=38bdf8&bcolor=020617`;
 
 export const GameBoard: React.FC<Props> = ({
   player,
@@ -30,6 +36,8 @@ export const GameBoard: React.FC<Props> = ({
   theme,
   mode,
   timeRemainingSeconds,
+  lang,
+  onSelectLanguage,
   onPointerTarget,
   onSettleWord,
   onSettleSentence,
@@ -38,6 +46,9 @@ export const GameBoard: React.FC<Props> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [clickEffect, setClickEffect] = useState<{ x: number; y: number; time: number } | null>(null);
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   const mySnake = snakes[`snake-${player.id}`] || Object.values(snakes).find(s => s.playerId === player.id);
 
@@ -88,7 +99,7 @@ export const GameBoard: React.FC<Props> = ({
             canvas.height = height;
           }
 
-          const zoom = mySnake ? calculateCameraZoom(mySnake.totalLength) : 0.8;
+          const zoom = mySnake ? calculateCameraZoom(mySnake.totalLength) : 1.2;
           renderGame(ctx, width, height, bounds, snakes, foods, mySnake ? mySnake.id : null, zoom, clickEffect);
         }
       }
@@ -118,43 +129,84 @@ export const GameBoard: React.FC<Props> = ({
         className="w-full h-full cursor-crosshair touch-none"
       />
 
-      {/* Top HUD: Theme, Timer, Stats */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-20">
+      {/* Top HUD Controls Bar */}
+      <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none z-20 gap-2">
         {/* Theme & Mode Banner */}
         <div className="bg-slate-900/90 border border-cyan-500/30 backdrop-blur-md rounded-2xl px-4 py-2 shadow-xl flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-cyan-400 animate-pulse" />
           <div>
             <div className="text-[10px] uppercase tracking-wider text-cyan-300 font-bold">
-              {mode === 'disaster' ? '防災専場' : mode === 'random' ? '今回のテーマ' : '初心者フリー場'}
+              {mode === 'disaster' ? t('arena.disaster') : mode === 'random' ? t('arena.title') : t('arena.permanent')}
             </div>
-            <div className="text-lg font-black text-white capitalize">
+            <div className="text-sm font-black text-white capitalize">
               {theme === 'disaster' ? '防災・安全' : theme}
             </div>
           </div>
         </div>
 
         {/* 120s Countdown Timer */}
-        <div className={`bg-slate-900/90 border backdrop-blur-md rounded-2xl px-6 py-2 shadow-xl text-center ${
+        <div className={`bg-slate-900/90 border backdrop-blur-md rounded-2xl px-5 py-2 shadow-xl text-center ${
           timeRemainingSeconds <= 10 ? 'border-red-500 text-red-400 animate-bounce' : timeRemainingSeconds <= 30 ? 'border-amber-500 text-amber-300' : 'border-emerald-500/40 text-emerald-400'
         }`}>
-          <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Time</div>
-          <div className="text-2xl font-black font-mono">
+          <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400">{t('game.timeRemaining')}</div>
+          <div className="text-xl font-black font-mono">
             {Math.floor(timeRemainingSeconds / 60)}:{(timeRemainingSeconds % 60).toString().padStart(2, '0')}
           </div>
         </div>
 
-        {/* Live Leaderboard Mini */}
-        <div className="bg-slate-900/90 border border-white/10 backdrop-blur-md rounded-2xl p-3 shadow-xl max-w-xs w-48">
-          <div className="flex items-center gap-2 text-xs font-black text-amber-400 mb-1">
-            <Trophy className="w-4 h-4" /> 排名榜
-          </div>
-          <div className="space-y-1 text-xs">
-            {leaderboard.slice(0, 3).map((s, idx) => (
-              <div key={s.id} className="flex justify-between items-center text-slate-300 font-medium">
-                <span className="truncate max-w-[90px]">{idx + 1}. {s.nickname}</span>
-                <span className="font-mono font-bold text-amber-300">{s.totalLength}</span>
+        {/* Top Right Actions: Language, FAQ, QR Code */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* QR Code Button */}
+          <button
+            onClick={() => setShowQRModal(true)}
+            className="p-2.5 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-cyan-400 shadow-xl transition-all"
+            title="邀请二维码"
+          >
+            <QrCode className="w-5 h-5" />
+          </button>
+
+          {/* FAQ Button */}
+          <button
+            onClick={() => setShowRulesModal(true)}
+            className="p-2.5 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-amber-400 shadow-xl transition-all"
+            title={t('rules.title')}
+          >
+            <HelpCircle className="w-5 h-5" />
+          </button>
+
+          {/* Language Selector Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowLangMenu(!showLangMenu)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-xs font-bold text-white shadow-xl transition-all"
+            >
+              <Globe className="w-4 h-4 text-cyan-400" />
+              <span className="uppercase">{lang}</span>
+            </button>
+            {showLangMenu && (
+              <div className="absolute right-0 mt-2 w-36 bg-slate-900 border border-white/15 rounded-2xl shadow-2xl overflow-hidden z-40">
+                {[
+                  { code: 'zh-CN', label: '简体中文' },
+                  { code: 'ja', label: '日本語' },
+                  { code: 'en', label: 'English' },
+                  { code: 'zh-TW', label: '繁體中文' }
+                ].map(item => (
+                  <button
+                    key={item.code}
+                    onClick={() => {
+                      saveLanguagePreference(item.code as Language);
+                      onSelectLanguage(item.code as Language);
+                      setShowLangMenu(false);
+                    }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-bold hover:bg-slate-800 transition-colors ${
+                      lang === item.code ? 'text-cyan-400 bg-cyan-950/40' : 'text-slate-300'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
@@ -178,47 +230,106 @@ export const GameBoard: React.FC<Props> = ({
           </button>
         ))}
 
-        {/* Sentence Building Mode Status */}
-        {sentenceAnalysis.isSentenceBuilding && !sentenceAnalysis.isSentenceReady && (
-          <div className="bg-amber-900/80 border border-amber-400/50 text-amber-200 text-xs font-bold py-2 px-5 rounded-full shadow-lg backdrop-blur-md animate-pulse flex items-center gap-2">
-            <Flame className="w-4 h-4 text-amber-400" />
-            組句中…继续捡字组成完整句子！
-          </div>
-        )}
-
-        {/* Candidate Word Bubbles (Normal Food Colors, NEVER GOLD) */}
-        {!sentenceAnalysis.isSentenceBuilding && wordSearch.status === 'WORD_READY' && wordSearch.candidates.map(candidate => (
+        {/* Candidate Word Bubbles (NO GOLD) */}
+        {!sentenceAnalysis.isSentenceReady && wordSearch.status === 'WORD_READY' && wordSearch.candidates.map(candidate => (
           <button
             key={candidate.id}
             onClick={() => {
               audio.playWordCompleted();
               onSettleWord(candidate);
             }}
-            className="w-full bg-slate-900/90 border-2 border-cyan-400/80 hover:border-cyan-300 text-cyan-200 font-extrabold py-3 px-6 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-between backdrop-blur-md"
+            className="w-full bg-slate-900/95 border-2 border-cyan-400 backdrop-blur-xl text-cyan-300 font-black py-3 px-6 rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-transform flex items-center justify-between"
           >
-            <div>
-              <span className="text-xl text-white font-black">{candidate.canonical}</span>
-              <span className="ml-2 text-xs text-cyan-400">({candidate.reading})</span>
+            <div className="text-left">
+              <div className="text-lg text-white font-extrabold">{candidate.canonical}</div>
+              <div className="text-xs text-cyan-400">{candidate.reading} · {candidate.meaning}</div>
             </div>
-            <span className="text-xs bg-cyan-950 text-cyan-300 font-bold px-3 py-1 rounded-full border border-cyan-700">
-              +{candidate.readingLength} 身长
+            <span className="text-xs bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-extrabold px-3 py-1 rounded-full">
+              拼成! (+{candidate.readingLength})
             </span>
           </button>
         ))}
-
-        {/* Abandon / Spill Tail Button */}
-        {heldFoods.length > 0 && (
-          <button
-            onClick={() => {
-              audio.playTailSpill();
-              onSpillTail();
-            }}
-            className="bg-red-950/80 border border-red-500/40 text-red-300 hover:bg-red-900 font-bold text-xs py-2 px-5 rounded-full shadow-lg backdrop-blur-md transition-colors flex items-center gap-1.5"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> 弃牌/甩字 ({heldFoods.length})
-          </button>
-        )}
       </div>
+
+      {/* FAQ / Rules Modal */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => setShowRulesModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+              <HelpCircle className="w-6 h-6 text-amber-400" />
+              <h3 className="text-lg font-black text-white">{t('rules.title')}</h3>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+              <p>{t('rules.1')}</p>
+              <p>{t('rules.2')}</p>
+              <p>{t('rules.3')}</p>
+              <p>{t('rules.4')}</p>
+              <p>{t('rules.5')}</p>
+            </div>
+
+            <button
+              onClick={() => setShowRulesModal(false)}
+              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+            >
+              {t('rules.close')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Invitation Modal */}
+      {showQRModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl relative">
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center justify-center gap-2">
+              <QrCode className="w-6 h-6 text-cyan-400" />
+              <h3 className="text-lg font-black text-white">游戏邀请二维码</h3>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 inline-block shadow-inner">
+              <img
+                src={QR_IMAGE_URL}
+                alt="Invite QR Code"
+                className="w-44 h-44 rounded-xl object-contain"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-slate-400">手机扫码或浏览器输入网址加入：</p>
+              <a
+                href={INVITE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-400 font-mono font-bold hover:underline text-sm block"
+              >
+                {INVITE_URL.replace('https://', '')}
+              </a>
+            </div>
+
+            <button
+              onClick={() => setShowQRModal(false)}
+              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+            >
+              {t('rules.close')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

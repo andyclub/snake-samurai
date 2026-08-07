@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArenaMode, Language, Player, Theme } from '../types';
-import { Users, QrCode, Play, Sparkles, ShieldAlert, Globe, Compass, X } from 'lucide-react';
+import { Users, QrCode, Play, Sparkles, ShieldAlert, Globe, Compass, X, HelpCircle } from 'lucide-react';
 import { saveLanguagePreference } from '../i18n';
 
 interface Props {
@@ -38,6 +38,7 @@ export const LobbyScreen: React.FC<Props> = ({
 }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showQRCodeModal, setShowQRCodeModal] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [nameInput, setNameInput] = useState(player.name);
   const [selectedColor, setSelectedColor] = useState(player.color);
 
@@ -56,26 +57,35 @@ export const LobbyScreen: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col items-center justify-between p-6 select-none overflow-y-auto">
-      {/* Top Header: Title, QR Code Invite & Language Selector */}
+      {/* Top Header: Title, FAQ, QR Code & Language Selector */}
       <header className="w-full max-w-4xl flex items-center justify-between z-20">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-cyan-500/20 border border-cyan-500/40 rounded-2xl">
             <Sparkles className="w-6 h-6 text-cyan-400" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">聴風・侍蛇</h1>
+            <h1 className="text-xl font-black text-white tracking-tight">{t('app.title')}</h1>
             <p className="text-xs text-slate-400">snake-samurai</p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* FAQ Modal Button */}
+          <button
+            onClick={() => setShowRulesModal(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-slate-900 border border-white/10 hover:border-amber-400 rounded-full text-xs font-bold text-amber-300 transition-all shadow-lg"
+          >
+            <HelpCircle className="w-4 h-4 text-amber-400" />
+            <span>{t('rules.title')}</span>
+          </button>
+
           {/* QR Code Invitation Button */}
           <button
             onClick={() => setShowQRCodeModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-950/80 border border-cyan-500/40 hover:border-cyan-400 rounded-full text-xs font-bold text-cyan-300 transition-all shadow-lg"
+            className="flex items-center gap-2 px-3 py-2 bg-cyan-950/80 border border-cyan-500/40 hover:border-cyan-400 rounded-full text-xs font-bold text-cyan-300 transition-all shadow-lg"
           >
             <QrCode className="w-4 h-4 text-cyan-400" />
-            <span>邀请二维码 (h.kazeabc.com)</span>
+            <span>h.kazeabc.com</span>
           </button>
 
           {/* Language Menu */}
@@ -128,15 +138,14 @@ export const LobbyScreen: React.FC<Props> = ({
         >
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-black uppercase px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-              常驻场
+              {t('arena.permanent')}
             </span>
             {selectedMode === 'free' && <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />}
           </div>
-          <h2 className="text-xl font-black text-white mb-2">🟢 初级场</h2>
+          <h2 className="text-xl font-black text-white mb-2">🟢 {t('arena.default')}</h2>
           <p className="text-xs text-slate-400 leading-relaxed mb-4">
             新手自由场。不限制词汇主题，自由拼词组句，熟悉侍蛇游动与对战操作。
           </p>
-          <div className="text-[11px] text-cyan-300 font-bold">主题：不限自由</div>
         </div>
 
         {/* 2. 主题场 (随机主题场) */}
@@ -150,15 +159,14 @@ export const LobbyScreen: React.FC<Props> = ({
         >
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-black uppercase px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-              主题轮换
+              {t('arena.open')}
             </span>
             {selectedMode === 'random' && <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />}
           </div>
-          <h2 className="text-xl font-black text-white mb-2">🟡 主题场</h2>
+          <h2 className="text-xl font-black text-white mb-2">🟡 {t('arena.title')}</h2>
           <p className="text-xs text-slate-400 leading-relaxed mb-4">
             随机抽签主题（旅行、学习、工作、生活、文化）。仅限与主题相符的词句结算。
           </p>
-          <div className="text-[11px] text-amber-300 font-bold">主题：随机轮换</div>
         </div>
 
         {/* 3. 防灾专场 (日本·富山市防灾) */}
@@ -172,15 +180,14 @@ export const LobbyScreen: React.FC<Props> = ({
         >
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-black uppercase px-3 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
-              防灾专项
+              {t('arena.disasterOnly')}
             </span>
             {selectedMode === 'disaster' && <span className="w-3 h-3 rounded-full bg-red-400 animate-ping" />}
           </div>
-          <h2 className="text-xl font-black text-white mb-2">🔴 防灾专场</h2>
+          <h2 className="text-xl font-black text-white mb-2">🔴 {t('arena.disaster')}</h2>
           <p className="text-xs text-slate-400 leading-relaxed mb-4">
             日本·富山市防灾知识专场。包含地震、津波、避難所、高台避险等专业表达。
           </p>
-          <div className="text-[11px] text-red-300 font-bold">主题：地震・津波・避難</div>
         </div>
       </main>
 
@@ -189,7 +196,7 @@ export const LobbyScreen: React.FC<Props> = ({
         {/* Nickname & Color Customization */}
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="space-y-1 flex-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">你的昵称</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('lobby.name')}</label>
             <input
               type="text"
               value={nameInput}
@@ -200,7 +207,7 @@ export const LobbyScreen: React.FC<Props> = ({
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">侍蛇颜色</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t('lobby.color')}</label>
             <div className="flex gap-1.5">
               {PLAYER_COLORS.map(c => (
                 <button
@@ -219,7 +226,7 @@ export const LobbyScreen: React.FC<Props> = ({
         {/* Start Button & Countdown */}
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] text-slate-400 font-bold uppercase">倒计时</div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase">{t('trivia.time')}</div>
             <div className="text-xl font-mono font-black text-cyan-400">{secondsLeft}s</div>
           </div>
 
@@ -227,10 +234,44 @@ export const LobbyScreen: React.FC<Props> = ({
             onClick={onStart}
             className="w-full sm:w-auto px-8 py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-lg rounded-2xl shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
           >
-            <Play className="w-5 h-5 fill-current" /> 开启 120 秒比赛
+            <Play className="w-5 h-5 fill-current" /> {t('btn.startRound')}
           </button>
         </div>
       </footer>
+
+      {/* FAQ / Rules Modal */}
+      {showRulesModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => setShowRulesModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+              <HelpCircle className="w-6 h-6 text-amber-400" />
+              <h3 className="text-lg font-black text-white">{t('rules.title')}</h3>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-300 leading-relaxed">
+              <p>{t('rules.1')}</p>
+              <p>{t('rules.2')}</p>
+              <p>{t('rules.3')}</p>
+              <p>{t('rules.4')}</p>
+              <p>{t('rules.5')}</p>
+            </div>
+
+            <button
+              onClick={() => setShowRulesModal(false)}
+              className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
+            >
+              {t('rules.close')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* QR Code Invitation Modal */}
       {showQRCodeModal && (
@@ -257,7 +298,7 @@ export const LobbyScreen: React.FC<Props> = ({
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs text-slate-400">手机扫码或浏览器输入网址加入游戏：</p>
+              <p className="text-xs text-slate-400">手机扫码或浏览器输入网址加入：</p>
               <a
                 href={INVITE_URL}
                 target="_blank"
@@ -272,7 +313,7 @@ export const LobbyScreen: React.FC<Props> = ({
               onClick={() => setShowQRCodeModal(false)}
               className="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black rounded-xl"
             >
-              关闭
+              {t('rules.close')}
             </button>
           </div>
         </div>

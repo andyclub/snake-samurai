@@ -397,6 +397,8 @@ const App: React.FC = () => {
           theme={theme}
           mode={mode}
           timeRemainingSeconds={timeRemaining}
+          lang={lang}
+          onSelectLanguage={setLang}
           onPointerTarget={handlePointerTarget}
           onSettleWord={handleSettleWord}
           onSettleSentence={handleSettleSentence}
