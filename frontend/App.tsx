@@ -44,23 +44,20 @@ const App: React.FC = () => {
     isBot: false
   }));
 
-  // Game State
+  // Game State (React UI rendering)
   const [snakes, setSnakes] = useState<Record<string, SnakeState>>({});
   const [foods, setFoods] = useState<Record<string, FoodState>>({});
 
-  // Mutable refs for crash-proof 60fps game loop execution
+  // Single Source of Truth Refs for Physics & 60fps Game Engine
   const phaseRef = useRef(phase);
   const startedAtRef = useRef(startedAt);
-  const snakesRef = useRef(snakes);
-  const foodsRef = useRef(foods);
-  const boundsRef = useRef(bounds);
+  const snakesRef = useRef<Record<string, SnakeState>>({});
+  const foodsRef = useRef<Record<string, FoodState>>({});
+  const boundsRef = useRef<ArenaBounds>(INITIAL_BOUNDS);
   const themeRef = useRef(theme);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
-  useEffect(() => { snakesRef.current = snakes; }, [snakes]);
-  useEffect(() => { foodsRef.current = foods; }, [foods]);
-  useEffect(() => { boundsRef.current = bounds; }, [bounds]);
   useEffect(() => { themeRef.current = theme; }, [theme]);
 
   const handleUpdatePlayer = (name: string, color: string) => {
@@ -102,7 +99,7 @@ const App: React.FC = () => {
   }, []);
 
   // Multiplayer Hook
-  const { isHost, sendMoveIntent, broadcastSnapshot } = useSnakeSamuraiMultiplayer({
+  const { isHost, sendMoveIntent } = useSnakeSamuraiMultiplayer({
     roomId: 'main',
     player,
     onCommand: async (cmd, payload) => {
@@ -119,7 +116,6 @@ const App: React.FC = () => {
       return { ok: true, message: 'Command executed' };
     },
     onSnapshot: (snapshot) => {
-      // ONLY sync snapshot if local player is actively in PLAYING phase and has valid live snakes
       if (snapshot && phaseRef.current === GamePhase.PLAYING) {
         if (snapshot.snakes && Object.keys(snapshot.snakes).length > 0) {
           snakesRef.current = { ...snapshot.snakes, ...snakesRef.current };
@@ -156,8 +152,15 @@ const App: React.FC = () => {
     setTheme(newTheme);
   };
 
-  // Start Match with 3 head diameters starting snake
-  const startMatch = useCallback(() => {
+  // Start Match with 3 head diameters starting snake for selected mode & theme
+  const startMatch = useCallback((selectedMode?: ArenaMode, selectedTheme?: Theme) => {
+    const activeMode = selectedMode || mode;
+    const activeTheme = selectedTheme || theme;
+
+    setMode(activeMode);
+    setTheme(activeTheme);
+    themeRef.current = activeTheme;
+
     const now = Date.now();
     const allSnakes: Record<string, SnakeState> = {};
 
@@ -202,18 +205,20 @@ const App: React.FC = () => {
 
     const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS);
 
+    // Populate Physics Engine Refs Directly
     snakesRef.current = allSnakes;
     foodsRef.current = initFoods;
     boundsRef.current = INITIAL_BOUNDS;
     phaseRef.current = GamePhase.PLAYING;
     startedAtRef.current = now;
 
+    // Trigger React State Updates
     setSnakes(allSnakes);
     setFoods(initFoods);
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
     setPhase(GamePhase.PLAYING);
-  }, [player, createPlayerSnake]);
+  }, [mode, theme, player, createPlayerSnake]);
 
   // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
@@ -405,7 +410,7 @@ const App: React.FC = () => {
   };
 
   if (IS_REMOTE) {
-    return <RemoteControl onCommand={async (cmd, payload) => ({ ok: true, message: 'Executed' })} />;
+    return <RemoteControl onCommand={async () => ({ ok: true, message: 'Executed' })} />;
   }
 
   const arenaState: ArenaState = {
@@ -434,7 +439,7 @@ const App: React.FC = () => {
           lang={lang}
           onSelectLanguage={setLang}
           lobbyEndsAt={lobbyEndsAt}
-          onStart={startMatch}
+          onStart={(overrideMode, overrideTheme) => startMatch(overrideMode, overrideTheme)}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}

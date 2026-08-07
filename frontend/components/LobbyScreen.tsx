@@ -12,7 +12,7 @@ interface Props {
   lang: Language;
   onSelectLanguage: (lang: Language) => void;
   lobbyEndsAt?: number | null;
-  onStart: () => void;
+  onStart: (mode?: ArenaMode, theme?: Theme) => void;
   t: (key: string) => string;
 }
 
@@ -53,6 +53,11 @@ export const LobbyScreen: React.FC<Props> = ({
     if (nameInput.trim()) {
       onUpdatePlayer(nameInput.trim(), selectedColor);
     }
+  };
+
+  const handleLaunchArena = (mode: ArenaMode, theme: Theme) => {
+    onSelectMode(mode, theme);
+    onStart(mode, theme);
   };
 
   return (
@@ -131,76 +136,85 @@ export const LobbyScreen: React.FC<Props> = ({
         </div>
       </header>
 
-      {/* Center Cards: 3 Arena Cards & Player Config */}
+      {/* Center Cards: 3 Arena Cards & Direct Start Trigger */}
       <main className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-6 my-auto z-10 py-3">
         {/* 1. 初级场 (新手自由场) */}
         <button
           type="button"
-          onClick={() => onSelectMode('free', 'free')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all ${
+          onClick={() => handleLaunchArena('free', 'free')}
+          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
             selectedMode === 'free'
-              ? 'bg-cyan-950/60 border-cyan-400 shadow-xl shadow-cyan-500/20 scale-102'
-              : 'bg-slate-900/80 border-white/10 hover:border-cyan-500/50'
+              ? 'bg-cyan-950/80 border-cyan-400 shadow-2xl shadow-cyan-500/30 ring-2 ring-cyan-400/50'
+              : 'bg-slate-900/90 border-white/15 hover:border-cyan-400/80'
           }`}
         >
           <div className="flex items-center justify-between mb-2 sm:mb-4">
             <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
               {t('arena.permanent')}
             </span>
-            {selectedMode === 'free' && <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />}
+            <Play className="w-5 h-5 text-cyan-400 fill-current" />
           </div>
           <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🟢 {t('arena.default')}</h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-300 leading-relaxed mb-4">
             新手自由场。不限制词汇主题，自由拼词组句，熟悉侍蛇游动与对战操作。
           </p>
+          <div className="w-full py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
+            <Play className="w-4 h-4 fill-current" /> 点击立即进入自由场
+          </div>
         </button>
 
         {/* 2. 主题场 (随机主题场) */}
         <button
           type="button"
-          onClick={() => onSelectMode('random', 'travel')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all ${
+          onClick={() => handleLaunchArena('random', 'travel')}
+          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
             selectedMode === 'random'
-              ? 'bg-amber-950/60 border-amber-400 shadow-xl shadow-amber-500/20 scale-102'
-              : 'bg-slate-900/80 border-white/10 hover:border-amber-500/50'
+              ? 'bg-amber-950/80 border-amber-400 shadow-2xl shadow-amber-500/30 ring-2 ring-amber-400/50'
+              : 'bg-slate-900/90 border-white/15 hover:border-amber-400/80'
           }`}
         >
           <div className="flex items-center justify-between mb-2 sm:mb-4">
             <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
               {t('arena.open')}
             </span>
-            {selectedMode === 'random' && <span className="w-3 h-3 rounded-full bg-amber-400 animate-ping" />}
+            <Play className="w-5 h-5 text-amber-400 fill-current" />
           </div>
           <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🟡 {t('arena.title')}</h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-300 leading-relaxed mb-4">
             随机抽签主题（旅行、学习、工作、生活、文化）。仅限与主题相符的词句结算。
           </p>
+          <div className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
+            <Play className="w-4 h-4 fill-current" /> 点击立即进入主题场
+          </div>
         </button>
 
         {/* 3. 防灾专场 (日本·富山市防灾) */}
         <button
           type="button"
-          onClick={() => onSelectMode('disaster', 'disaster')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all ${
+          onClick={() => handleLaunchArena('disaster', 'disaster')}
+          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
             selectedMode === 'disaster'
-              ? 'bg-red-950/60 border-red-500 shadow-xl shadow-red-500/20 scale-102'
-              : 'bg-slate-900/80 border-white/10 hover:border-red-500/50'
+              ? 'bg-red-950/80 border-red-500 shadow-2xl shadow-red-500/30 ring-2 ring-red-500/50'
+              : 'bg-slate-900/90 border-white/15 hover:border-red-400/80'
           }`}
         >
           <div className="flex items-center justify-between mb-2 sm:mb-4">
             <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
               {t('arena.disasterOnly')}
             </span>
-            {selectedMode === 'disaster' && <span className="w-3 h-3 rounded-full bg-red-400 animate-ping" />}
+            <Play className="w-5 h-5 text-red-400 fill-current" />
           </div>
           <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🔴 {t('arena.disaster')}</h2>
-          <p className="text-xs text-slate-400 leading-relaxed">
+          <p className="text-xs text-slate-300 leading-relaxed mb-4">
             日本·富山市防灾知识专场。包含地震、津波、避難所、高台避险等专业表达。
           </p>
+          <div className="w-full py-2.5 rounded-xl bg-red-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
+            <Play className="w-4 h-4 fill-current" /> 点击立即进入防灾场
+          </div>
         </button>
       </main>
 
-      {/* Bottom Panel: Player Profile & Start Match */}
+      {/* Bottom Panel: Player Profile & Global Start Button */}
       <footer className="w-full max-w-4xl mx-auto bg-slate-900/90 border border-white/10 rounded-3xl p-4 sm:p-6 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 sm:gap-6 z-20 shrink-0 mt-2">
         {/* Nickname & Color Customization */}
         <div className="flex items-center gap-4 w-full md:w-auto">
@@ -242,7 +256,7 @@ export const LobbyScreen: React.FC<Props> = ({
 
           <button
             type="button"
-            onClick={onStart}
+            onClick={() => onStart(selectedMode, selectedMode === 'disaster' ? 'disaster' : selectedMode === 'random' ? 'travel' : 'free')}
             className="touch-manipulation w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-base sm:text-lg rounded-2xl shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Play className="w-5 h-5 fill-current" /> {t('btn.startRound')}
