@@ -110,7 +110,7 @@ const App: React.FC = () => {
     setTheme(newTheme);
   };
 
-  // Start Match with initial length & active bots
+  // Start Match with 3 head diameters starting snake
   const startMatch = useCallback(() => {
     const now = Date.now();
     const allSnakes: Record<string, SnakeState> = {};
@@ -189,9 +189,9 @@ const App: React.FC = () => {
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
     setPhase(GamePhase.PLAYING);
-  }, [player, snakes]);
+  }, [player]);
 
-  // Main 60fps Game Loop
+  // Clean 60fps Game Loop with safe decoupled state updates
   useEffect(() => {
     if (phase !== GamePhase.PLAYING) return;
     let animationFrameId: number;
@@ -214,107 +214,95 @@ const App: React.FC = () => {
           return;
         }
 
-        // Half shrink speed: shrinks from 1000 to 800 over 120s (half of original 400 delta)
         const shrinkFactor = elapsed / 240;
         const currentSize = 1000 - shrinkFactor * 200;
         currentBounds = { minX: -currentSize, maxX: currentSize, minY: -currentSize, maxY: currentSize };
         setBounds(currentBounds);
       }
 
-      // 2. Respawn foods: initial count was 16/player. When ground foods drop below 8/player, replenish to 8/player
-      setFoods(prevFoods => {
-        const nextFoods = { ...prevFoods };
-        let modified = false;
-
-        // Respawn out-of-bounds ground foods
-        for (const fId of Object.keys(nextFoods)) {
-          const food = nextFoods[fId];
-          if (food.state !== 'ground') continue;
-
-          if (
-            food.x < currentBounds.minX || food.x > currentBounds.maxX ||
-            food.y < currentBounds.minY || food.y > currentBounds.maxY
-          ) {
-            nextFoods[fId] = generateSingleFood(fId, currentBounds);
-            modified = true;
-          }
-        }
-
-        // Check if ground food count dropped below threshold (playerCount * 8)
-        const playerCount = Math.max(1, Object.keys(snakes).length);
-        const targetMin = playerCount * 8;
-        const groundCount = Object.values(nextFoods).filter(f => f.state === 'ground').length;
-
-        if (groundCount < targetMin) {
-          const missing = targetMin - groundCount;
-          for (let i = 0; i < missing; i++) {
-            const newId = `food-replenish-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
-            nextFoods[newId] = generateSingleFood(newId, currentBounds);
-          }
-          modified = true;
-        }
-
-        return modified ? nextFoods : prevFoods;
-      });
-
-      // 3. Update snake physics & Bot AI participation
       setSnakes(prevSnakes => {
-        const updated: Record<string, SnakeState> = {};
-        for (const sId of Object.keys(prevSnakes)) {
-          let snake = prevSnakes[sId];
+        setFoods(prevFoods => {
+          let updatedFoods = { ...prevFoods };
 
-          // Bot AI Active Participation
-          if (snake.isBot) {
-            const aiDecision = updateBotAI(snake, prevSnakes, foods, currentBounds);
-            snake = { ...snake, target: aiDecision.target };
-
-            // Auto-settle for Bot
-            if (aiDecision.shouldSettleSentenceIndex !== undefined && snake.buildState.sentenceCandidates[0]) {
-              const res = settleSentence(snake, snake.buildState.sentenceCandidates[0], foods, currentBounds, theme);
-              snake = res.updatedSnake;
-              setFoods(res.updatedFoods);
-            } else if (aiDecision.shouldSettleWordIndex !== undefined && snake.buildState.candidates[0]) {
-              const res = settleWord(snake, snake.buildState.candidates[0], foods, currentBounds, theme);
-              snake = res.updatedSnake;
-              setFoods(res.updatedFoods);
+          // Respawn out-of-bounds ground foods
+          for (const fId of Object.keys(updatedFoods)) {
+            const food = updatedFoods[fId];
+            if (food.state !== 'ground') continue;
+            if (
+              food.x < currentBounds.minX || food.x > currentBounds.maxX ||
+              food.y < currentBounds.minY || food.y > currentBounds.maxY
+            ) {
+              updatedFoods[fId] = generateSingleFood(fId, currentBounds);
             }
           }
 
-          const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds, prevSnakes);
+          // Check if ground food count dropped below threshold (playerCount * 8)
+          const playerCount = Math.max(1, Object.keys(prevSnakes).length);
+          const targetMin = playerCount * 8;
+          const groundCount = Object.values(updatedFoods).filter(f => f.state === 'ground').length;
 
-          // Update buildState for held foods
-          const wordSearch = searchCandidates(movedSnake.heldFoods, theme);
-          const sentenceAnalysis = analyzeSentenceBuilding(movedSnake.heldFoods, theme);
-
-          let buildStatus = wordSearch.status;
-          if (sentenceAnalysis.isSentenceReady) {
-            buildStatus = 'SENTENCE_READY';
-          } else if (sentenceAnalysis.isSentenceBuilding) {
-            buildStatus = 'SENTENCE_BUILDING';
+          if (groundCount < targetMin) {
+            const missing = targetMin - groundCount;
+            for (let i = 0; i < missing; i++) {
+              const newId = `food-replenish-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
+              updatedFoods[newId] = generateSingleFood(newId, currentBounds);
+            }
           }
 
-          updated[sId] = {
-            ...movedSnake,
-            buildState: {
-              status: buildStatus,
-              candidates: wordSearch.candidates,
-              sentenceCandidates: sentenceAnalysis.candidates,
-              version: (movedSnake.buildState.version || 0) + 1
+          // Update Bot AI & Snake physics
+          const updatedSnakes: Record<string, SnakeState> = {};
+          for (const sId of Object.keys(prevSnakes)) {
+            let snake = prevSnakes[sId];
+
+            if (snake.isBot) {
+              const aiDecision = updateBotAI(snake, prevSnakes, updatedFoods, currentBounds);
+              snake = { ...snake, target: aiDecision.target };
+
+              if (aiDecision.shouldSettleSentenceIndex !== undefined && snake.buildState.sentenceCandidates[0]) {
+                const res = settleSentence(snake, snake.buildState.sentenceCandidates[0], updatedFoods, currentBounds, theme);
+                snake = res.updatedSnake;
+                updatedFoods = res.updatedFoods;
+              } else if (aiDecision.shouldSettleWordIndex !== undefined && snake.buildState.candidates[0]) {
+                const res = settleWord(snake, snake.buildState.candidates[0], updatedFoods, currentBounds, theme);
+                snake = res.updatedSnake;
+                updatedFoods = res.updatedFoods;
+              }
             }
-          };
-        }
-        return updated;
-      });
 
-      // 4. Resolve collisions
-      setSnakes(prevSnakes => {
-        const colRes = checkAndResolveCollisions(prevSnakes, foods, currentBounds);
-        setFoods(colRes.updatedFoods);
+            const movedSnake = updateSnakePosition(snake, deltaSeconds, currentBounds, prevSnakes);
+            const wordSearch = searchCandidates(movedSnake.heldFoods, theme);
+            const sentenceAnalysis = analyzeSentenceBuilding(movedSnake.heldFoods, theme);
 
-        if (colRes.events.spills.length > 0) {
-          audio.playTailSpill();
-        }
-        return colRes.updatedSnakes;
+            let buildStatus = wordSearch.status;
+            if (sentenceAnalysis.isSentenceReady) {
+              buildStatus = 'SENTENCE_READY';
+            } else if (sentenceAnalysis.isSentenceBuilding) {
+              buildStatus = 'SENTENCE_BUILDING';
+            }
+
+            updatedSnakes[sId] = {
+              ...movedSnake,
+              buildState: {
+                status: buildStatus,
+                candidates: wordSearch.candidates,
+                sentenceCandidates: sentenceAnalysis.candidates,
+                version: (movedSnake.buildState.version || 0) + 1
+              }
+            };
+          }
+
+          // Resolve collisions
+          const colRes = checkAndResolveCollisions(updatedSnakes, updatedFoods, currentBounds);
+          if (colRes.events.spills.length > 0) {
+            audio.playTailSpill();
+          }
+
+          // Return final state updates to React
+          setSnakes(colRes.updatedSnakes);
+          return colRes.updatedFoods;
+        });
+
+        return prevSnakes;
       });
 
       animationFrameId = requestAnimationFrame(loop);
@@ -322,7 +310,7 @@ const App: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, startedAt, foods, bounds, theme]);
+  }, [phase, startedAt, bounds, theme]);
 
   // Pointer target input
   const handlePointerTarget = (x: number, y: number) => {
