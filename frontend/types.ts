@@ -31,6 +31,8 @@ export interface HeldFood {
   color: string;
   pickedAt: number;
   order: number;
+  x?: number;
+  y?: number;
 }
 
 export interface CandidateWord {

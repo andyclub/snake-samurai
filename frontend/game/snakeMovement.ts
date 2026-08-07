@@ -148,11 +148,66 @@ export function updateSnakePosition(
     }
   }
 
+  // Physical Kinematics Chain for Mouth Held Foods with Map Boundary Clamping
+  const updatedHeldFoods = snake.heldFoods.map((item) => ({ ...item }));
+  const marginRadius = 18;
+  const minBoundX = bounds.minX + marginRadius;
+  const maxBoundX = bounds.maxX - marginRadius;
+  const minBoundY = bounds.minY + marginRadius;
+  const maxBoundY = bounds.maxY - marginRadius;
+
+  for (let idx = 0; idx < updatedHeldFoods.length; idx++) {
+    const item = updatedHeldFoods[idx];
+    if (idx === 0) {
+      // 1st food: anchored in front of mouth along newDirection
+      const targetAnchorX = Math.max(minBoundX, Math.min(maxBoundX, newHead.x + newDirection.x * 24));
+      const targetAnchorY = Math.max(minBoundY, Math.min(maxBoundY, newHead.y + newDirection.y * 24));
+
+      const curX = item.x !== undefined ? item.x : targetAnchorX;
+      const curY = item.y !== undefined ? item.y : targetAnchorY;
+
+      // Lerp smooth follow with delayed physical momentum
+      const lerp = Math.min(1.0, deltaTimeSeconds * 16);
+      let nx = curX + (targetAnchorX - curX) * lerp;
+      let ny = curY + (targetAnchorY - curY) * lerp;
+
+      // Clamp to map boundary
+      item.x = Math.max(minBoundX, Math.min(maxBoundX, nx));
+      item.y = Math.max(minBoundY, Math.min(maxBoundY, ny));
+    } else {
+      // 2nd+ food: distance-constraint kinematics trailing previous food item
+      const prevFood = updatedHeldFoods[idx - 1];
+      const curX = item.x !== undefined ? item.x : prevFood.x;
+      const curY = item.y !== undefined ? item.y : prevFood.y;
+
+      const fdx = curX - prevFood.x;
+      const fdy = curY - prevFood.y;
+      const fdist = Math.hypot(fdx, fdy);
+      const spacing = 22;
+
+      let nx = curX;
+      let ny = curY;
+
+      if (fdist > spacing) {
+        nx = prevFood.x + (fdx / fdist) * spacing;
+        ny = prevFood.y + (fdy / fdist) * spacing;
+      } else if (fdist < 0.001) {
+        nx = prevFood.x - newDirection.x * spacing;
+        ny = prevFood.y - newDirection.y * spacing;
+      }
+
+      // Clamp EVERY held food in chain to map boundary
+      item.x = Math.max(minBoundX, Math.min(maxBoundX, nx));
+      item.y = Math.max(minBoundY, Math.min(maxBoundY, ny));
+    }
+  }
+
   return {
     ...snake,
     head: newHead,
     direction: newDirection,
     bodyPath: updatedPath,
+    heldFoods: updatedHeldFoods,
     currentSpeed: speed,
     onBoundary
   };

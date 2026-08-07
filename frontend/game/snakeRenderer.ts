@@ -237,48 +237,32 @@ export function renderGame(
     ctx.fill();
     ctx.restore();
 
-    // Draw Mouth Held Foods Chain
+    // Draw Mouth Held Foods Chain (Physical Kinematic Chain with Map Boundary Clamping)
     if (snake.heldFoods.length > 0) {
-      const time = Date.now() / 150;
       const dirX = snake.direction.x || 1;
       const dirY = snake.direction.y || 0;
-      const perpX = -dirY;
-      const perpY = dirX;
 
-      // Draw connecting chain line
+      // Draw connecting chain line from mouth to physical food positions
       ctx.save();
       ctx.beginPath();
-      snake.heldFoods.forEach((_, idx) => {
-        let px: number, py: number;
-        if (idx === 0) {
-          px = head.x + dirX * 26;
-          py = head.y + dirY * 26;
-        } else {
-          const wobble = Math.sin(time * 3.5 + idx * 0.9) * (5 + idx * 1.5);
-          px = head.x + dirX * 26 - dirX * (idx * 24) + perpX * wobble;
-          py = head.y + dirY * 26 - dirY * (idx * 24) + perpY * wobble;
-        }
-        if (idx === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+      ctx.moveTo(head.x + dirX * 22, head.y + dirY * 22);
+
+      snake.heldFoods.forEach((item) => {
+        const px = item.x !== undefined ? item.x : head.x + dirX * 24;
+        const py = item.y !== undefined ? item.y : head.y + dirY * 24;
+        ctx.lineTo(px, py);
       });
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2;
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2.5;
       ctx.setLineDash([4, 4]);
       ctx.stroke();
       ctx.restore();
 
-      // Draw each held food node
-      snake.heldFoods.forEach((item, idx) => {
-        let posX: number, posY: number;
-
-        if (idx === 0) {
-          posX = head.x + dirX * 26;
-          posY = head.y + dirY * 26;
-        } else {
-          const wobble = Math.sin(time * 3.5 + idx * 0.9) * (5 + idx * 1.5);
-          posX = head.x + dirX * 26 - dirX * (idx * 24) + perpX * wobble;
-          posY = head.y + dirY * 26 - dirY * (idx * 24) + perpY * wobble;
-        }
+      // Draw each held food node at physical (item.x, item.y)
+      snake.heldFoods.forEach((item) => {
+        const posX = item.x !== undefined ? item.x : head.x + dirX * 24;
+        const posY = item.y !== undefined ? item.y : head.y + dirY * 24;
 
         ctx.save();
         ctx.beginPath();
