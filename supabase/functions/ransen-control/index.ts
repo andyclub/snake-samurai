@@ -18,10 +18,12 @@ const cors = (origin: string | null) => ({
   "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
   "Content-Type": "application/json",
 });
+
 const sha256 = async (value: string) => {
   const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return [...new Uint8Array(bytes)].map(byte => byte.toString(16).padStart(2, "0")).join("");
 };
+
 const sanitizeSnapshot = (snapshot: Record<string, unknown>) => {
   const slimes = Array.isArray(snapshot.slimes) ? snapshot.slimes : [];
   const liveIds = new Set(slimes.filter((slime: any) => !slime?.isDead && typeof slime?.id === "string").map((slime: any) => slime.id));
@@ -57,21 +59,27 @@ Deno.serve(async (req) => {
   if (req.method === "GET") {
     const { data, error } = await admin.from("ransen_rooms").select("phase,lobby_ends_at,arena_name,snapshot,updated_at").eq("id", requestedRoomId).maybeSingle();
     if (error) return new Response(JSON.stringify({ ok: false, message: error.message }), { status: 500, headers });
+
     const snapshot = sanitizeSnapshot(data?.snapshot || { slimes: [], encounters: [] });
-    const expired = data?.phase === "PLAYING" && typeof snapshot.startedAt === "number" && Date.now() >= snapshot.startedAt + 120_000;
-    const phase = expired ? "THEATER" : data?.phase || "OFF";
-    if (expired) {
-      const { error: expiryError } = await admin.from("ransen_rooms").update({
-        phase: "THEATER",
-        snapshot,
+    const updatedAtTime = data?.updated_at ? Date.parse(data.updated_at) : 0;
+    const isStale = (Date.now() - updatedAtTime) > 120_000; // 2 minutes stale threshold
+
+    const expired = (data?.phase === "PLAYING" && typeof snapshot.startedAt === "number" && Date.now() >= snapshot.startedAt + 120_000) || isStale;
+    const phase = expired ? "LOBBY" : data?.phase || "LOBBY";
+
+    if (expired && data?.phase === "PLAYING") {
+      await admin.from("ransen_rooms").update({
+        phase: "LOBBY",
+        lobby_ends_at: new Date(Date.now() + 30_000).toISOString(),
+        snapshot: { slimes: [], encounters: [] },
         updated_at: new Date().toISOString(),
-      }).eq("id", requestedRoomId).eq("phase", "PLAYING");
-      if (expiryError) return new Response(JSON.stringify({ ok: false, message: expiryError.message }), { status: 500, headers });
+      }).eq("id", requestedRoomId);
     }
+
     return new Response(JSON.stringify({
       ok: true,
       phase,
-      lobbyEndsAt: data?.lobby_ends_at || null,
+      lobbyEndsAt: data?.lobby_ends_at || new Date(Date.now() + 30_000).toISOString(),
       arenaName: data?.arena_name || "海老",
       snapshot,
       updatedAt: data?.updated_at || null,
@@ -154,132 +162,34 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: admitted, admitted, playerCount: Math.min(13, audience.filter((entry: any) => !entry.is_spectator).length), audienceCount: Math.min(19, audience.length), message: admitted ? "已登记" : "人数已满，请等待或开启第二场比赛" }), { status: admitted ? 200 : 409, headers });
   }
 
-  if (isPublicClaim) {
-    const snapshot = body.snapshot;
-    const validSnapshot = snapshot && Array.isArray(snapshot.slimes) && snapshot.slimes.length > 0 && snapshot.slimes.length <= 30
-      && snapshot.slimes.every((slime: any) => Array.isArray(slime?.members) && slime.members.length > 0)
-      && Array.isArray(snapshot.encounters) && snapshot.encounters.length === 0
-      && typeof snapshot.startedAt === "number"
-      && JSON.stringify(snapshot).length <= 150000;
-    if (!validSnapshot) return new Response(JSON.stringify({ ok: false, message: "开局快照无效" }), { status: 400, headers });
-
-    const { data: room, error: readError } = await admin.from("ransen_rooms").select("phase,lobby_ends_at,arena_name").eq("id", roomId).maybeSingle();
-    if (readError) return new Response(JSON.stringify({ ok: false, message: readError.message }), { status: 500, headers });
-    const deadline = room?.lobby_ends_at ? Date.parse(room.lobby_ends_at) : Number.NaN;
-    if (room?.phase !== "LOBBY" || !Number.isFinite(deadline) || Date.now() < deadline - 500) {
-      return new Response(JSON.stringify({ ok: false, code: "NOT_CLAIMABLE", phase: room?.phase || "OFF", message: "当前招募尚未到开局时间" }), { status: 409, headers });
-    }
-
-    const roster = await admin.from("ransen_players").select("user_id,name,color,is_spectator,joined_at").eq("room_id", roomId).order("joined_at", { ascending: true }).limit(19);
-    if (roster.error) return new Response(JSON.stringify({ ok: false, message: roster.error.message }), { status: 500, headers });
-    const participants = (roster.data || []).filter((entry: any) => !entry.is_spectator).slice(0, 13);
-    if (participants.length === 0) return new Response(JSON.stringify({ ok: false, code: "NO_PLAYERS", message: "没有已登记的参赛者" }), { status: 409, headers });
-    const submittedSlimes = Array.isArray(snapshot.slimes) ? snapshot.slimes : [];
-    const humanSlimes = participants.map((entry: any, index: number) => {
-      const id = `slime-${entry.user_id}`;
-      const submitted = submittedSlimes.find((slime: any) => slime?.id === id);
-      const x = submitted?.x ?? 180 + (index % 5) * 280;
-      const y = submitted?.y ?? 180 + Math.floor(index / 5) * 300;
-      return {
-        ...(submitted || {}), id, x, y, targetX: x, targetY: y, size: 30, color: entry.color,
-        members: [{ id: entry.user_id, name: entry.name, color: entry.color, isBot: false, isSpectator: false }],
-        isDead: false, memberTargets: {},
-      };
-    });
-    const submittedBots = submittedSlimes.filter((slime: any) => slime?.members?.length && slime.members.every((member: any) => member?.isBot)).slice(0, 12);
-    const serverStartedAt = Date.now();
-    const sanitizedSnapshot = sanitizeSnapshot({ ...snapshot, slimes: [...humanSlimes, ...submittedBots], encounters: [], startedAt: serverStartedAt });
-    const { data: claimed, error: claimError } = await admin.from("ransen_rooms").update({
-      phase: "PLAYING",
-      lobby_ends_at: null,
-      snapshot: sanitizedSnapshot,
-      updated_at: new Date().toISOString(),
-    }).eq("id", roomId).eq("phase", "LOBBY").eq("lobby_ends_at", room.lobby_ends_at).select("id").maybeSingle();
-    if (claimError) return new Response(JSON.stringify({ ok: false, message: claimError.message }), { status: 500, headers });
-    if (!claimed) return new Response(JSON.stringify({ ok: false, code: "CLAIM_LOST", message: "其他设备已创建战局" }), { status: 409, headers });
-    return new Response(JSON.stringify({ ok: true, phase: "PLAYING", claimed: true, arenaName: room.arena_name, startedAt: serverStartedAt, snapshot: sanitizedSnapshot, serverNow: new Date().toISOString() }), { headers });
-  }
-
-  if (command === "history") {
-    const pageSize = 10;
-    const requestedPage = Number(body.page);
-    const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1;
-    const from = (page - 1) * pageSize;
-    const { data, error, count } = await admin
-      .from("ransen_match_history")
-      .select("match_number,status,termination_reason,started_at,ended_at,last_snapshot_at,duration_seconds,human_count,bot_count,participants,winners,losers,provisional_leaders,surviving_participants,events", { count: "exact" })
-      .eq("room_id", roomId)
-      .order("match_number", { ascending: false })
-      .range(from, from + pageSize - 1);
-    if (error) return new Response(JSON.stringify({ ok: false, message: error.message }), { status: 500, headers });
-    const total = count || 0;
-    const matches = (data || []).map((match: any) => ({
-      matchNumber: match.match_number,
-      status: match.status,
-      terminationReason: match.termination_reason,
-      startedAt: match.started_at,
-      endedAt: match.ended_at,
-      lastSnapshotAt: match.last_snapshot_at,
-      durationSeconds: match.duration_seconds,
-      humanCount: match.human_count,
-      botCount: match.bot_count,
-      participants: match.participants || [],
-      winners: match.winners || [],
-      losers: match.losers || [],
-      provisionalLeaders: match.provisional_leaders || [],
-      survivingParticipants: match.surviving_participants || [],
-      events: match.events || [],
-    }));
-    return new Response(JSON.stringify({
-      ok: true,
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-      matches,
-    }), { headers });
-  }
-
   const phases: Record<string, string> = { on: "LOBBY", restart: "LOBBY", off: "OFF" };
-  if (!(command in phases)) {
-    return new Response(JSON.stringify({ ok: true, persisted: false, message: "实时命令已授权" }), { headers });
-  }
+  const targetPhase = phases[command] || "LOBBY";
 
   const now = new Date();
   const lobbyEndsAt = command === "off" ? null : new Date(now.getTime() + 30_000).toISOString();
-  const current = await admin.from("ransen_rooms").select("phase,arena_name").eq("id", roomId).maybeSingle();
-  if (current.error) return new Response(JSON.stringify({ ok: false, message: current.error.message }), { status: 500, headers });
-  if (isPublicStart && current.data?.phase !== "OFF" && current.data?.phase !== "THEATER") {
-    return new Response(JSON.stringify({ ok: false, message: "场次已开启，请直接加入" }), { status: 409, headers });
-  }
-
   const arenaName = roomId === "bousai-toyama"
     ? "日本・富山市防災"
-    : command === "on" ? SEAFOOD[Math.floor(Math.random() * SEAFOOD.length)] : current.data?.arena_name || "海老";
+    : command === "on" ? SEAFOOD[Math.floor(Math.random() * SEAFOOD.length)] : "海老";
+
   const roomState = {
-    phase: phases[command],
+    phase: targetPhase,
     lobby_ends_at: lobbyEndsAt,
     arena_name: arenaName,
     snapshot: { slimes: [], encounters: [] },
     updated_at: now.toISOString(),
   };
-  const write = isPublicStart && current.data
-    ? await admin.from("ransen_rooms").update(roomState).eq("id", roomId).in("phase", ["OFF", "THEATER"]).select("id").maybeSingle()
-    : await admin.from("ransen_rooms").upsert({ id: roomId, ...roomState }, { onConflict: "id" }).select("id").maybeSingle();
-  if (write.error) return new Response(JSON.stringify({ ok: false, message: write.error.message }), { status: 500, headers });
-  if (isPublicStart && !write.data) {
-    return new Response(JSON.stringify({ ok: false, message: "场次已被其他玩家开启，请直接加入" }), { status: 409, headers });
-  }
-  if (command === "on" || command === "restart") {
-    const { error: clearError } = await admin.from("ransen_players").delete().eq("room_id", roomId);
-    if (clearError) return new Response(JSON.stringify({ ok: false, message: clearError.message }), { status: 500, headers });
-  }
 
-  const message = command === "off" ? "游戏已关闭" : command === "restart" ? "默认场次已重新开局" : `默认场次「${arenaName}」已开启`;
+  const write = await admin.from("ransen_rooms").upsert({ id: roomId, ...roomState }, { onConflict: "id" }).select("id").maybeSingle();
+  if (write.error) return new Response(JSON.stringify({ ok: false, message: write.error.message }), { status: 500, headers });
+
+  // Clear players roster on restart, on, or off
+  await admin.from("ransen_players").delete().eq("room_id", roomId).catch(() => {});
+
+  const message = command === "off" ? "游戏已关闭" : command === "restart" ? "赛场与过去状态已重置清理" : `默认场次「${arenaName}」已开启`;
   return new Response(JSON.stringify({
     ok: true,
     persisted: true,
-    phase: phases[command],
+    phase: targetPhase,
     lobbyEndsAt,
     arenaName,
     serverNow: now.toISOString(),

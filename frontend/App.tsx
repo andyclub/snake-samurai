@@ -106,10 +106,12 @@ const App: React.FC = () => {
     roomId: 'main',
     player,
     onCommand: async (cmd, payload) => {
-      if (cmd === 'on') {
+      if (cmd === 'on' || cmd === 'restart') {
         if (payload.mode) setMode(payload.mode);
         if (payload.theme) setTheme(payload.theme);
         setLobbyEndsAt(payload.lobbyEndsAt || Date.now() + 30_000);
+        phaseRef.current = GamePhase.LOBBY;
+        setPhase(GamePhase.LOBBY);
       } else if (cmd === 'off') {
         phaseRef.current = GamePhase.OFF;
         setPhase(GamePhase.OFF);
@@ -117,21 +119,12 @@ const App: React.FC = () => {
       return { ok: true, message: 'Command executed' };
     },
     onSnapshot: (snapshot) => {
-      if (snapshot && phaseRef.current !== GamePhase.PLAYING) {
+      // ONLY sync snapshot if local player is actively in PLAYING phase and has valid live snakes
+      if (snapshot && phaseRef.current === GamePhase.PLAYING) {
         if (snapshot.snakes && Object.keys(snapshot.snakes).length > 0) {
-          snakesRef.current = snapshot.snakes;
-          foodsRef.current = snapshot.foods || {};
-          boundsRef.current = snapshot.bounds || INITIAL_BOUNDS;
-          phaseRef.current = snapshot.phase;
-
-          setPhase(snapshot.phase);
-          setSnakes(snapshot.snakes);
-          setFoods(snapshot.foods || {});
-          setBounds(snapshot.bounds || INITIAL_BOUNDS);
-          if (snapshot.startedAt) {
-            startedAtRef.current = snapshot.startedAt;
-            setStartedAt(snapshot.startedAt);
-          }
+          snakesRef.current = { ...snapshot.snakes, ...snakesRef.current };
+          if (snapshot.foods) foodsRef.current = snapshot.foods;
+          if (snapshot.bounds) boundsRef.current = snapshot.bounds;
         }
       }
     },
