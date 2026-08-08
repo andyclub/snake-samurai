@@ -283,9 +283,9 @@ const App: React.FC = () => {
         }
       }
 
-      // Check if ground food count dropped below threshold (playerCount * 8)
+      // Check if ground food count dropped below threshold (playerCount * 12)
       const playerCount = Math.max(1, Object.keys(prevSnakes).length);
-      const targetMin = playerCount * 8;
+      const targetMin = playerCount * 12;
       const groundCount = Object.values(updatedFoods).filter(f => f.state === 'ground').length;
 
       if (groundCount < targetMin) {

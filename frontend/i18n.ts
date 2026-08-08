@@ -97,7 +97,18 @@ export const translations: Record<Language, Record<string, string>> = {
     'rules.3': '3. 金旗组句：衔接助词与标点拼出完整日语句子，将获得炫彩金黄侍蛇身体与背部高耸金旗！',
     'rules.4': '4. 闪亮黄色蛇尾与交战：蛇尾一节为发光的亮黄色。蛇头撞击敌方蛇尾会触发甩字爆散，使其嘴里未结算的文字散落回地图！',
     'rules.5': '5. 场次与防灾：提供初级场、随机主题场与日本富山市防灾专场（包含地震、津波、避难所专项防灾表达）。',
-    'rules.close': '我知道了'
+    'rules.close': '我知道了',
+    'theme.free': '自由场',
+    'theme.life': '日常生活',
+    'theme.study': '学习教育',
+    'theme.work': '职场商务',
+    'theme.travel': '旅行观光',
+    'theme.culture': '日本文化',
+    'theme.disaster': '防灾安全',
+    'leaderboard.title': '排行榜',
+    'leaderboard.unit': '节',
+    'qr.title': '游戏邀请二维码',
+    'qr.url': '网址'
   },
   'ja': {
     'app.title': '聴風・侍蛇',
@@ -195,7 +206,18 @@ export const translations: Record<Language, Record<string, string>> = {
     'rules.3': '3. 金旗文章：助詞と句読点を組み合わせて文を作成すると、金色の身体と背中の金旗を獲得！',
     'rules.4': '4. 光る黄色蛇尾とバトル：しっぽは明るく光る黄色です。相手のしっぽに頭をぶつけると未確定文字を奪い落とせます！',
     'rules.5': '5. エリアと防災：初心者フリー場、テーマ場、富山市防災専場（地震、津波、避難所知識）を提供。',
-    'rules.close': '閉じる'
+    'rules.close': '閉じる',
+    'theme.free': 'フリー',
+    'theme.life': '日常生活',
+    'theme.study': '学習・教育',
+    'theme.work': 'ビジネス',
+    'theme.travel': '旅行・観光',
+    'theme.culture': '日本文化',
+    'theme.disaster': '防災・安全',
+    'leaderboard.title': 'ランキング',
+    'leaderboard.unit': '節',
+    'qr.title': '招待QRコード',
+    'qr.url': 'URL'
   },
   'en': {
     'app.title': 'snake-samurai',
@@ -293,7 +315,18 @@ export const translations: Record<Language, Record<string, string>> = {
     'rules.3': '3. Golden Sentence: Combine particles and punctuation for full Japanese sentences to earn golden body segments & tall golden flags!',
     'rules.4': '4. Glowing Tail & Battle: The tail end sparkles in bright yellow. Hit enemy tails to scatter their unconfirmed characters!',
     'rules.5': '5. Arenas: Choose between Beginner Free Arena, Theme Arena, and Toyama Disaster Readiness Arena.',
-    'rules.close': 'Got it'
+    'rules.close': 'Got it',
+    'theme.free': 'Free Play',
+    'theme.life': 'Daily Life',
+    'theme.study': 'Study',
+    'theme.work': 'Business',
+    'theme.travel': 'Travel',
+    'theme.culture': 'Japanese Culture',
+    'theme.disaster': 'Disaster Safety',
+    'leaderboard.title': 'Leaderboard',
+    'leaderboard.unit': 'seg',
+    'qr.title': 'Invite QR Code',
+    'qr.url': 'URL'
   },
   'zh-TW': {
     'app.title': '聴風・侍蛇',
@@ -391,7 +424,18 @@ export const translations: Record<Language, Record<string, string>> = {
     'rules.3': '3. 金旗組句：銜接助詞與標點拼出完整日語句子，將獲得炫彩金黃侍蛇身體與背部高聳金旗！',
     'rules.4': '4. 閃亮黃色蛇尾與交戰：蛇尾一節為發光的亮黃色。蛇頭撞擊敵方蛇尾會觸發甩字爆散，使其嘴裡未結算的文字散落回地圖！',
     'rules.5': '5. 場次與防災：提供初級場、隨機主題場與日本富山市防災專場（包含地震、津波、避難所專項防災表達）。',
-    'rules.close': '我知道了'
+    'rules.close': '我知道了',
+    'theme.free': '自由場',
+    'theme.life': '日常生活',
+    'theme.study': '學習教育',
+    'theme.work': '職場商務',
+    'theme.travel': '旅行觀光',
+    'theme.culture': '日本文化',
+    'theme.disaster': '防災安全',
+    'leaderboard.title': '排行榜',
+    'leaderboard.unit': '節',
+    'qr.title': '遊戲邀請二維碼',
+    'qr.url': '網址'
   }
 };
 

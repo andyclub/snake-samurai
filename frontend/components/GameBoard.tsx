@@ -224,11 +224,11 @@ export const GameBoard: React.FC<Props> = ({
         <div className="bg-slate-900/90 border border-cyan-500/30 backdrop-blur-md rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-xl flex items-center gap-2 sm:gap-3">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-pulse" />
           <div>
-            <div className="text-[9px] sm:text-[10px] uppercase tracking-wider text-cyan-300 font-bold">
+            <div className="text-[9px] sm:text-[10px] tracking-wider text-cyan-300 font-bold">
               {mode === 'disaster' ? t('arena.disaster') : mode === 'random' ? t('arena.title') : t('arena.permanent')}
             </div>
-            <div className="text-xs sm:text-sm font-black text-white capitalize">
-              {theme === 'disaster' ? '防災・安全' : theme}
+            <div className="text-xs sm:text-sm font-black text-white">
+              {t(`theme.${theme}`)}
             </div>
           </div>
         </div>
@@ -321,7 +321,7 @@ export const GameBoard: React.FC<Props> = ({
               className="touch-manipulation animate-bounce px-5 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-2xl border-2 border-white flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
             >
               <Sparkles className="w-4 h-4 fill-current text-slate-950" />
-              <span>✨ 结算句：【{sentenceAnalysis.candidates[0].text}】</span>
+              <span>【{sentenceAnalysis.candidates[0].text}】</span>
             </button>
           )}
 
@@ -332,7 +332,7 @@ export const GameBoard: React.FC<Props> = ({
               className="touch-manipulation animate-pulse px-4 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-2xl border-2 border-white flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
             >
               <Sparkles className="w-4 h-4 fill-current text-slate-950" />
-              <span>🎉 结算词：【{wordSearch.candidates[0].canonical}】({wordSearch.candidates[0].meaning || wordSearch.candidates[0].reading})</span>
+              <span>【{wordSearch.candidates[0].canonical}】</span>
             </button>
           )}
         </div>
@@ -359,7 +359,7 @@ export const GameBoard: React.FC<Props> = ({
                 />
                 <span className="truncate">{s.nickname}</span>
               </div>
-              <span className="font-mono text-slate-200">+{s.earnedLength}节</span>
+              <span className="font-mono text-slate-200">+{s.earnedLength}{t('leaderboard.unit')}</span>
             </div>
           ))}
         </div>
@@ -410,13 +410,13 @@ export const GameBoard: React.FC<Props> = ({
             </button>
             <div className="flex items-center justify-center gap-2">
               <QrCode className="w-6 h-6 text-cyan-400" />
-              <h3 className="text-lg font-black text-white">游戏邀请二维码</h3>
+              <h3 className="text-lg font-black text-white">{t('qr.title')}</h3>
             </div>
             <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 inline-block">
               <img src={QR_IMAGE_URL} alt="QR Code" className="w-48 h-48 rounded-xl object-contain" />
             </div>
             <p className="text-xs text-slate-400">
-              网址：<a href={INVITE_URL} target="_blank" rel="noreferrer" className="text-cyan-400 font-mono font-bold hover:underline">h.kazeabc.com</a>
+              {t('qr.url')}：<a href={INVITE_URL} target="_blank" rel="noreferrer" className="text-cyan-400 font-mono font-bold hover:underline">h.kazeabc.com</a>
             </p>
             <button
               type="button"

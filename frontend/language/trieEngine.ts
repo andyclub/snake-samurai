@@ -45,7 +45,7 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
     // Remove duplicates
     const uniqueMatchesMap = new Map<string, Lexeme>();
     exactMatches.forEach(m => uniqueMatchesMap.set(m.id, m));
-    const validMatches = Array.from(uniqueMatchesMap.values()).filter(lex => calculateReadingLength(lex.reading) >= 2);
+    const validMatches = Array.from(uniqueMatchesMap.values()).filter(lex => calculateReadingLength(lex.reading) >= 2 && Array.from(lex.canonical).length >= 2);
 
     if (validMatches.length > 0) {
       const candidates: CandidateWord[] = validMatches.map(lex => {

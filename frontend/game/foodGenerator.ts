@@ -52,7 +52,7 @@ export function generateInitialFoods(
   customPool?: FoodGlyphItem[],
   theme: Theme = 'free'
 ): Record<string, FoodState> {
-  const count = Math.max(20, playerCount * 16);
+  const count = Math.max(30, playerCount * 22);
   const foods: Record<string, FoodState> = {};
   for (let i = 0; i < count; i++) {
     const id = `food-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`;
