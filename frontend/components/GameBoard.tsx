@@ -308,19 +308,19 @@ export const GameBoard: React.FC<Props> = ({
       {/* Floating Candidate Prompt Bubble DIRECTLY ABOVE PLAYER SNAKE HEAD */}
       {mySnake && (wordSearch.status === 'WORD_READY' || sentenceAnalysis.isSentenceReady) && (
         <div
-          className="fixed pointer-events-auto z-40 -translate-x-1/2 -translate-y-full transition-transform duration-75 flex flex-col items-center gap-1.5"
+          className="fixed pointer-events-auto z-40 -translate-x-1/2 -translate-y-full transition-transform duration-75 flex flex-col items-center gap-2"
           style={{
             left: `${headScreenX}px`,
-            top: `${headScreenY - 45 * zoom}px`
+            top: `${headScreenY - 60 * zoom}px`
           }}
         >
           {sentenceAnalysis.isSentenceReady && sentenceAnalysis.candidates[0] && (
             <button
               type="button"
               onClick={() => onSettleSentence(sentenceAnalysis.candidates[0])}
-              className="touch-manipulation animate-bounce px-5 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-2xl border-2 border-white flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+              className="touch-manipulation animate-bounce px-8 py-4 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-slate-950 font-black text-xl sm:text-2xl rounded-3xl shadow-2xl border-4 border-white flex items-center gap-3 cursor-pointer active:scale-95 whitespace-nowrap scale-110 sm:scale-125 origin-bottom"
             >
-              <Sparkles className="w-4 h-4 fill-current text-slate-950" />
+              <Sparkles className="w-7 h-7 fill-current text-slate-950" />
               <span>【{sentenceAnalysis.candidates[0].text}】</span>
             </button>
           )}
@@ -329,37 +329,39 @@ export const GameBoard: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => onSettleWord(wordSearch.candidates[0])}
-              className="touch-manipulation animate-pulse px-4 py-2 bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-2xl border-2 border-white flex items-center gap-1.5 cursor-pointer active:scale-95 whitespace-nowrap"
+              className="touch-manipulation animate-pulse px-7 py-3.5 bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black text-lg sm:text-xl rounded-3xl shadow-2xl border-4 border-white flex items-center gap-2.5 cursor-pointer active:scale-95 whitespace-nowrap scale-110 sm:scale-125 origin-bottom"
             >
-              <Sparkles className="w-4 h-4 fill-current text-slate-950" />
+              <Sparkles className="w-6 h-6 fill-current text-slate-950" />
               <span>【{wordSearch.candidates[0].canonical}】</span>
             </button>
           )}
         </div>
       )}
 
-      {/* Leaderboard Panel (Displays ONLY earnedLength!) */}
-      <div className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-3 sm:left-4 bg-slate-900/80 border border-white/10 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-2xl z-20 max-w-[170px] sm:max-w-[200px] pointer-events-none">
-        <div className="flex items-center gap-1.5 text-xs font-black text-amber-400 border-b border-white/10 pb-1.5 mb-2">
-          <Trophy className="w-4 h-4" /> {t('leaderboard.title')}
+      {/* Compact Mobile Leaderboard Panel (Displays ONLY color dot, 1st char of name, earnedLength) */}
+      <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-2 sm:left-4 bg-slate-900/80 border border-white/10 backdrop-blur-md rounded-2xl p-1.5 sm:p-3 shadow-2xl z-20 max-w-[110px] sm:max-w-[200px] pointer-events-none">
+        <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-black text-amber-400 border-b border-white/10 pb-1 mb-1.5">
+          <Trophy className="w-3 h-3 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">{t('leaderboard.title')}</span><span className="sm:hidden">榜</span>
         </div>
-        <div className="space-y-1.5 text-[11px] font-bold">
+        <div className="space-y-1 text-[10px] sm:text-[11px] font-bold">
           {leaderboard.slice(0, 5).map((s, idx) => (
             <div
               key={s.id}
-              className={`flex items-center justify-between gap-2 px-2 py-1 rounded-xl ${
+              className={`flex items-center justify-between gap-1 sm:gap-2 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl ${
                 s.id === mySnake?.id ? 'bg-cyan-950/80 border border-cyan-500/40 text-cyan-300' : 'text-slate-300'
               }`}
             >
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="text-[9px] text-slate-400 font-mono">#{idx + 1}</span>
+              <div className="flex items-center gap-1 truncate">
+                <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono">#{idx + 1}</span>
                 <span
-                  className="w-2.5 h-2.5 rounded-full inline-block shrink-0"
+                  className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full inline-block shrink-0"
                   style={{ backgroundColor: s.baseColor }}
                 />
-                <span className="truncate">{s.nickname}</span>
+                {/* Mobile: 1st character of name only; Desktop: full nickname */}
+                <span className="sm:hidden font-black">{Array.from(s.nickname)[0] || '?'}</span>
+                <span className="hidden sm:inline truncate">{s.nickname}</span>
               </div>
-              <span className="font-mono text-slate-200">+{s.earnedLength}{t('leaderboard.unit')}</span>
+              <span className="font-mono text-slate-200 text-[9px] sm:text-xs">+{s.earnedLength}{t('leaderboard.unit')}</span>
             </div>
           ))}
         </div>
