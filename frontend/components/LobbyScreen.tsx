@@ -4,6 +4,7 @@ import { Users, QrCode, Play, ShieldAlert, Globe, Compass, X, HelpCircle } from 
 import { saveLanguagePreference } from '../i18n';
 import SlimeAvatar from './SlimeAvatar';
 import HomeLink from './HomeLink';
+import FullscreenCountdown from './FullscreenCountdown';
 
 interface Props {
   player: Player;
@@ -14,7 +15,6 @@ interface Props {
   lang: Language;
   onSelectLanguage: (lang: Language) => void;
   lobbyEndsAt?: number | null;
-  onStart: (mode?: ArenaMode, theme?: Theme) => void;
   t: (key: string) => string;
 }
 
@@ -35,7 +35,6 @@ export const LobbyScreen: React.FC<Props> = ({
   lang,
   onSelectLanguage,
   lobbyEndsAt,
-  onStart,
   t
 }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -44,7 +43,13 @@ export const LobbyScreen: React.FC<Props> = ({
   const [nameInput, setNameInput] = useState(player.name);
   const [selectedColor, setSelectedColor] = useState(player.color);
 
-  const secondsLeft = lobbyEndsAt ? Math.max(0, Math.ceil((lobbyEndsAt - Date.now()) / 1000)) : 30;
+  const [now, setNow] = useState(Date.now());
+  const secondsLeft = lobbyEndsAt ? Math.max(0, Math.ceil((lobbyEndsAt - now) / 1000)) : null;
+
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
@@ -57,13 +62,13 @@ export const LobbyScreen: React.FC<Props> = ({
     }
   };
 
-  const handleLaunchArena = (mode: ArenaMode, theme: Theme) => {
+  const handleSelectArena = (mode: ArenaMode, theme: Theme) => {
     onSelectMode(mode, theme);
-    onStart(mode, theme);
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_top,#172554_0%,#0f172a_42%,#020617_100%)] text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8 overflow-y-auto">
+      <FullscreenCountdown value={secondsLeft || 0} label={t('countdown.gameStart')} active={Boolean(lobbyEndsAt)} />
       <div className="pointer-events-none absolute left-[-5rem] top-20 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl" />
       <div className="pointer-events-none absolute bottom-10 right-[-4rem] h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
       {/* Top Header: Title, FAQ, QR Code & Language Selector */}
@@ -145,7 +150,7 @@ export const LobbyScreen: React.FC<Props> = ({
         {/* 1. 初级场 (新手自由场) */}
         <button
           type="button"
-          onClick={() => handleLaunchArena('free', 'free')}
+          onClick={() => handleSelectArena('free', 'free')}
           className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
             selectedMode === 'free'
               ? 'bg-cyan-950/80 border-cyan-400 shadow-2xl shadow-cyan-500/30 ring-2 ring-cyan-400/50'
@@ -163,14 +168,14 @@ export const LobbyScreen: React.FC<Props> = ({
             新手自由场。不限制词汇主题，自由拼词组句，熟悉侍蛇游动与对战操作。
           </p>
           <div className="w-full py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
-            <Play className="w-4 h-4 fill-current" /> 点击立即进入自由场
+            选择自由场
           </div>
         </button>
 
         {/* 2. 主题场 (随机主题场) */}
         <button
           type="button"
-          onClick={() => handleLaunchArena('random', 'travel')}
+          onClick={() => handleSelectArena('random', 'travel')}
           className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
             selectedMode === 'random'
               ? 'bg-amber-950/80 border-amber-400 shadow-2xl shadow-amber-500/30 ring-2 ring-amber-400/50'
@@ -188,14 +193,14 @@ export const LobbyScreen: React.FC<Props> = ({
             随机抽签主题（旅行、学习、工作、生活、文化）。仅限与主题相符的词句结算。
           </p>
           <div className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
-            <Play className="w-4 h-4 fill-current" /> 点击立即进入主题场
+            选择主题场
           </div>
         </button>
 
         {/* 3. 防灾专场 (日本·富山市防灾) */}
         <button
           type="button"
-          onClick={() => handleLaunchArena('disaster', 'disaster')}
+          onClick={() => handleSelectArena('disaster', 'disaster')}
           className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
             selectedMode === 'disaster'
               ? 'bg-red-950/80 border-red-500 shadow-2xl shadow-red-500/30 ring-2 ring-red-500/50'
@@ -213,7 +218,7 @@ export const LobbyScreen: React.FC<Props> = ({
             日本·富山市防灾知识专场。包含地震、津波、避難所、高台避险等专业表达。
           </p>
           <div className="w-full py-2.5 rounded-xl bg-red-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
-            <Play className="w-4 h-4 fill-current" /> 点击立即进入防灾场
+            选择防灾场
           </div>
         </button>
       </main>
@@ -251,21 +256,16 @@ export const LobbyScreen: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Start Button & Countdown */}
+        {/* Shared remote-controlled countdown */}
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
           <HomeLink className="hidden lg:inline-flex" />
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] text-slate-400 font-bold uppercase">{t('trivia.time')}</div>
-            <div className="text-xl font-mono font-black text-cyan-400">{secondsLeft}s</div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase">{lobbyEndsAt ? t('trivia.time') : '遥控器状态'}</div>
+            <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : '等待开启'}</div>
           </div>
-
-          <button
-            type="button"
-            onClick={() => onStart(selectedMode, selectedMode === 'disaster' ? 'disaster' : selectedMode === 'random' ? 'travel' : 'free')}
-            className="touch-manipulation w-full sm:w-auto px-8 py-3.5 sm:py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-base sm:text-lg rounded-2xl shadow-xl shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Play className="w-5 h-5 fill-current" /> {t('btn.startRound')}
-          </button>
+          <div className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-center text-sm font-black text-cyan-100">
+            {lobbyEndsAt ? '遥控器已开启集结' : '请由乱戦遥控器开启集结'}
+          </div>
         </div>
       </footer>
 

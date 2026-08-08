@@ -94,8 +94,11 @@ export function updateSnakePosition(
     // Check collision with enemy snake's held foods
     if (!isBlocked && otherSnake.heldFoods) {
       for (let i = 0; i < otherSnake.heldFoods.length; i++) {
-        const fx = otherSnake.head.x + otherSnake.direction.x * 26 - otherSnake.direction.x * (i * 24);
-        const fy = otherSnake.head.y + otherSnake.direction.y * 26 - otherSnake.direction.y * (i * 24);
+        const heldFood = otherSnake.heldFoods[i];
+        // Held food already has a physically simulated position. Use it rather
+        // than a reconstructed line so every item in the mouth chain is solid.
+        const fx = heldFood.x ?? otherSnake.head.x + otherSnake.direction.x * 26 - otherSnake.direction.x * (i * 24);
+        const fy = heldFood.y ?? otherSnake.head.y + otherSnake.direction.y * 26 - otherSnake.direction.y * (i * 24);
         const d = Math.hypot(nextX - fx, nextY - fy);
         if (d < collisionRadius) {
           isBlocked = true;

@@ -1,8 +1,6 @@
 import React from 'react';
 import { ArenaState, Player } from '../types';
-import { Trophy, Award, Sparkles, RotateCcw } from 'lucide-react';
-import SlimeAvatar from './SlimeAvatar';
-import HomeLink from './HomeLink';
+import { RotateCcw } from 'lucide-react';
 
 interface Props {
   arenaState: ArenaState;
@@ -13,7 +11,7 @@ interface Props {
 
 export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, t }) => {
   const leaderboard = Object.values(arenaState.snakes)
-    .sort((a, b) => b.totalLength - a.totalLength);
+    .sort((a, b) => b.earnedLength - a.earnedLength);
 
   const winner = leaderboard[0];
 
@@ -21,18 +19,9 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
     <div className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_center,#3b0764_0%,#0f172a_55%,#020617_100%)] text-white flex flex-col items-center justify-center p-6 overflow-y-auto">
       <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'conic-gradient(from 0deg at 50% 50%, transparent, #fbbf24, transparent 20%)', animation: 'spin 8s linear infinite' }} />
       <div className="relative max-w-2xl w-full bg-black/45 backdrop-blur-sm border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
-        {/* Banner Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black">
-            <Trophy className="w-4 h-4" /> 比赛结束 (120s 结算)
-          </div>
-          <h1 className="text-4xl font-black tracking-tight text-white">
-            {winner ? `👑 Champion: ${winner.nickname}` : '比赛回顾'}
-          </h1>
-          {winner && <SlimeAvatar color={winner.baseColor} className="mx-auto h-28 w-28" alt={winner.nickname} />}
-          <p className="text-slate-400 text-sm">
-            有效蛇身长度唯一决定最终胜负排名
-          </p>
+          <h1 className="text-3xl font-black tracking-tight text-white">本局成绩</h1>
+          <p className="text-slate-400 text-sm">仅计算已拼成的单词、句子及句子额外奖励。</p>
         </div>
 
         {/* Leaderboard & Achievement Review */}
@@ -61,17 +50,14 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-black font-mono text-amber-400">
-                      {snake.totalLength} <span className="text-xs font-normal text-slate-400">身长</span>
+                      {snake.earnedLength} <span className="text-xs font-normal text-slate-400">分</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Sentences Completed (GOLD STYLE) */}
                 {sentences.length > 0 && (
                   <div className="mt-2 space-y-1.5">
-                    <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider flex items-center gap-1">
-                      <Sparkles className="w-3.5 h-3.5 text-yellow-400" /> 完成日语句子 ({sentences.length})
-                    </div>
+                    <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">完成句子 ({sentences.length})</div>
                     <div className="flex flex-wrap gap-2">
                       {sentences.map(s => (
                         <span
@@ -85,12 +71,9 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
                   </div>
                 )}
 
-                {/* Words Completed (NORMAL STYLE) */}
                 {words.length > 0 && (
                   <div className="mt-2 space-y-1.5">
-                    <div className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1">
-                      <Award className="w-3.5 h-3.5 text-cyan-400" /> 完成单词 ({words.length})
-                    </div>
+                    <div className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">完成单词 ({words.length})</div>
                     <div className="flex flex-wrap gap-1.5">
                       {words.map(w => (
                         <span
@@ -113,9 +96,8 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
           onClick={onRestart}
           className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-98 font-black text-slate-950 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2"
         >
-          <RotateCcw className="w-5 h-5" /> 返回大厅 / 开启下一局
+          <RotateCcw className="w-5 h-5" /> 返回大厅
         </button>
-        <div className="text-center"><HomeLink /></div>
       </div>
     </div>
   );

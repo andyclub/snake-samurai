@@ -14,6 +14,7 @@ import { settleSentence, settleWord } from './game/settleManager';
 import { updateBotAI } from './game/botAI';
 import { searchCandidates } from './language/trieEngine';
 import { analyzeSentenceBuilding } from './language/sentenceEngine';
+import { callSnakeSamuraiControl } from './supabase';
 
 const IS_REMOTE = window.location.pathname.replace(/\/$/, '') === '/r';
 const INITIAL_BOUNDS: ArenaBounds = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
@@ -32,7 +33,7 @@ const App: React.FC = () => {
   const [phase, setPhase] = useState<GamePhase>(GamePhase.LOBBY);
   const [mode, setMode] = useState<ArenaMode>('free');
   const [theme, setTheme] = useState<Theme>('free');
-  const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(Date.now() + 30_000);
+  const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
@@ -87,9 +88,10 @@ const App: React.FC = () => {
         colorMode: 'player',
         color: p.color
       })),
-      baseLength: 3,
+      // The three starting body segments are visual only; score begins at zero.
+      baseLength: 0,
       earnedLength: 0,
-      totalLength: 3,
+      totalLength: 0,
       currentSpeed: 180,
       heldFoods: [],
       buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
@@ -192,9 +194,9 @@ const App: React.FC = () => {
           colorMode: 'player',
           color: botDef.color
         })),
-        baseLength: 3,
+        baseLength: 0,
         earnedLength: 0,
-        totalLength: 3,
+        totalLength: 0,
         currentSpeed: 180,
         heldFoods: [],
         buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
@@ -223,6 +225,34 @@ const App: React.FC = () => {
     audio.init();
     audio.setBGM('BATTLE');
   }, [mode, theme, player, createPlayerSnake]);
+
+  // The shared Ransen remote is the sole way to open a round. Every snake
+  // client follows the same cloud lobby deadline and starts locally together.
+  useEffect(() => {
+    if (phase !== GamePhase.LOBBY) return;
+    let cancelled = false;
+    const syncLobby = async () => {
+      const control = await callSnakeSamuraiControl('GET');
+      if (cancelled || !control.ok) return;
+      if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
+        const deadline = Date.parse(control.lobbyEndsAt);
+        if (Number.isFinite(deadline)) setLobbyEndsAt(deadline);
+      }
+    };
+    void syncLobby();
+    const interval = window.setInterval(syncLobby, 3_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== GamePhase.LOBBY || !lobbyEndsAt) return;
+    const tick = () => {
+      if (Date.now() >= lobbyEndsAt) startMatch();
+    };
+    tick();
+    const interval = window.setInterval(tick, 250);
+    return () => window.clearInterval(interval);
+  }, [phase, lobbyEndsAt, startMatch]);
 
   // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
@@ -440,7 +470,6 @@ const App: React.FC = () => {
           lang={lang}
           onSelectLanguage={setLang}
           lobbyEndsAt={lobbyEndsAt}
-          onStart={(overrideMode, overrideTheme) => startMatch(overrideMode, overrideTheme)}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}
@@ -469,6 +498,7 @@ const App: React.FC = () => {
           arenaState={arenaState}
           player={player}
           onRestart={() => {
+            setLobbyEndsAt(null);
             phaseRef.current = GamePhase.LOBBY;
             setPhase(GamePhase.LOBBY);
           }}
