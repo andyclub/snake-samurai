@@ -50,6 +50,23 @@ export default defineConfig(({ mode }) => {
       plugins: react(),
       build: {
         chunkSizeWarningLimit: 1000,
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (id.includes('node_modules')) {
+                if (id.includes('react')) {
+                  return 'vendor-react';
+                }
+                if (id.includes('@supabase')) {
+                  return 'vendor-supabase';
+                }
+                if (id.includes('lucide-react')) {
+                  return 'vendor-lucide';
+                }
+              }
+            }
+          }
+        }
       },
       resolve: {
         alias: {
