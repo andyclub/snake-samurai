@@ -100,7 +100,7 @@ const App: React.FC = () => {
   }, []);
 
   // Multiplayer Hook
-  const { isHost, sendMoveIntent } = useSnakeSamuraiMultiplayer({
+  const { isHost, onlinePlayers, sendMoveIntent, broadcastSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: 'main',
     player,
     phaseRef,
@@ -118,12 +118,19 @@ const App: React.FC = () => {
       return { ok: true, message: 'Command executed' };
     },
     onSnapshot: (snapshot) => {
-      if (snapshot && phaseRef.current === GamePhase.PLAYING) {
-        if (snapshot.snakes && Object.keys(snapshot.snakes).length > 0) {
-          snakesRef.current = { ...snapshot.snakes, ...snakesRef.current };
-          if (snapshot.foods) foodsRef.current = snapshot.foods;
-          if (snapshot.bounds) boundsRef.current = snapshot.bounds;
-        }
+      if (!snapshot?.snakes || Object.keys(snapshot.snakes).length === 0) return;
+      snakesRef.current = snapshot.snakes;
+      foodsRef.current = snapshot.foods || {};
+      boundsRef.current = snapshot.bounds || INITIAL_BOUNDS;
+      if (snapshot.mode) setMode(snapshot.mode);
+      if (snapshot.theme) setTheme(snapshot.theme);
+      if (snapshot.startedAt) {
+        startedAtRef.current = snapshot.startedAt;
+        setStartedAt(snapshot.startedAt);
+      }
+      if (snapshot.phase === GamePhase.PLAYING) {
+        phaseRef.current = GamePhase.PLAYING;
+        setPhase(GamePhase.PLAYING);
       }
     },
     onMoveIntent: (playerId, targetX, targetY) => {
@@ -220,9 +227,14 @@ const App: React.FC = () => {
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
     setPhase(GamePhase.PLAYING);
+    broadcastSnapshot({
+      id: 'main', mode: activeMode, theme: activeTheme, phase: GamePhase.PLAYING,
+      startedAt: now, endsAt: now + 120_000, bounds: INITIAL_BOUNDS,
+      snakes: allSnakes, foods: initFoods, leaderboard: [], version: 1
+    });
     audio.init();
     audio.setBGM('BATTLE');
-  }, [mode, theme, player, createPlayerSnake]);
+  }, [mode, theme, player, createPlayerSnake, broadcastSnapshot]);
 
   // The shared Ransen remote is the sole way to open a round. Every snake
   // client follows the same cloud lobby deadline and starts locally together.
@@ -245,16 +257,41 @@ const App: React.FC = () => {
   useEffect(() => {
     if (phase !== GamePhase.LOBBY || !lobbyEndsAt) return;
     const tick = () => {
-      if (Date.now() >= lobbyEndsAt) startMatch();
+      if (Date.now() >= lobbyEndsAt && isHost) startMatch();
     };
     tick();
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
-  }, [phase, lobbyEndsAt, startMatch]);
+  }, [phase, lobbyEndsAt, startMatch, isHost]);
+
+  // The elected host is authoritative: add joined human players once, then
+  // all browsers render the same shared snapshot instead of local bot rounds.
+  useEffect(() => {
+    if (!isHost || phase !== GamePhase.PLAYING) return;
+    let changed = false;
+    const next = { ...snakesRef.current };
+    for (const joined of onlinePlayers) {
+      const id = `snake-${joined.id}`;
+      if (!next[id]) { next[id] = createPlayerSnake(joined); changed = true; }
+    }
+    if (changed) snakesRef.current = next;
+  }, [isHost, onlinePlayers, phase, createPlayerSnake]);
+
+  useEffect(() => {
+    if (!isHost || phase !== GamePhase.PLAYING) return;
+    const publish = () => broadcastSnapshot({
+      id: 'main', mode: mode, theme: themeRef.current, phase: GamePhase.PLAYING,
+      startedAt: startedAtRef.current, endsAt: startedAtRef.current ? startedAtRef.current + 120_000 : null,
+      bounds: boundsRef.current, snakes: snakesRef.current, foods: foodsRef.current, leaderboard: [], version: 1
+    });
+    publish();
+    const timer = window.setInterval(publish, 120);
+    return () => window.clearInterval(timer);
+  }, [isHost, phase, mode, broadcastSnapshot]);
 
   // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
-    if (phase !== GamePhase.PLAYING) return;
+    if (phase !== GamePhase.PLAYING || !isHost) return;
     let animationFrameId: number;
     let lastTime = performance.now();
 
@@ -384,7 +421,7 @@ const App: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, player, createPlayerSnake]);
+  }, [phase, player, createPlayerSnake, isHost]);
 
   // Note: GameBoard reads directly from snakesRef/foodsRef/boundsRef for 60fps rendering
   // and manages its own 150ms HUD sync internally.

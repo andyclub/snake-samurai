@@ -80,6 +80,11 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
               callbacks.current.onSnapshot(payload.snapshot);
             }
           })
+          .on('broadcast', { event: 'request_snapshot' }, async () => {
+            if (hostRef.current) {
+              await channel?.send({ type: 'broadcast', event: 'snapshot', payload: { snapshot: callbacks.current.getSnapshot() } });
+            }
+          })
           .on('presence', { event: 'sync' }, () => {
             const state = channel?.presenceState() || {};
             const active: Player[] = [];
@@ -100,6 +105,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
             if (status === 'SUBSCRIBED') {
               setConnection('online');
               channel?.track({ player: { ...player, id }, onlineAt: new Date().toISOString() });
+              window.setTimeout(() => channel?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} }), 250);
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
               setConnection('error');
             }
