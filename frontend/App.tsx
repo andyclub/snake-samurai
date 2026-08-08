@@ -15,8 +15,6 @@ import { searchCandidates } from './language/trieEngine';
 import { analyzeSentenceBuilding } from './language/sentenceEngine';
 import { callSnakeSamuraiControl } from './supabase';
 
-const IS_REMOTE = window.location.pathname.replace(/\/$/, '') === '/r';
-const RANSEN_REMOTE_URL = 'https://g.kazeabc.com/r';
 const INITIAL_BOUNDS: ArenaBounds = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
 const KATAKANA = ['アオイ', 'カゼ', 'ソラ', 'ナギ', 'リン', 'ユキ', 'ハル', 'レイ', 'ミオ', 'ルイ'];
 const randomKatakana = () => KATAKANA[Math.floor(Math.random() * KATAKANA.length)] + Math.floor(10 + Math.random() * 90);
@@ -33,9 +31,6 @@ const App: React.FC = () => {
   const [phase, setPhase] = useState<GamePhase>(GamePhase.LOBBY);
   const [mode, setMode] = useState<ArenaMode>('free');
   const [theme, setTheme] = useState<Theme>('free');
-  useEffect(() => {
-    if (IS_REMOTE) window.location.replace(RANSEN_REMOTE_URL);
-  }, []);
   const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
@@ -442,18 +437,6 @@ const App: React.FC = () => {
     setSnakes({ ...snakesRef.current });
     setFoods({ ...foodsRef.current });
   };
-
-  if (IS_REMOTE) {
-    return (
-      <main className="fixed inset-0 grid place-items-center bg-slate-950 p-6 text-center text-white">
-        <div className="max-w-sm space-y-4 rounded-3xl border border-cyan-400/30 bg-slate-900/90 p-7 shadow-2xl">
-          <p className="text-lg font-black">正在打开乱戦遥控器…</p>
-          <p className="text-sm leading-relaxed text-slate-300">侍蛇与乱戦现由同一遥控器统一接受开场、重开与结束指令。</p>
-          <a className="inline-flex rounded-xl bg-cyan-400 px-4 py-3 font-black text-slate-950" href={RANSEN_REMOTE_URL}>前往乱戦遥控器</a>
-        </div>
-      </main>
-    );
-  }
 
   const arenaState: ArenaState = {
     id: 'main',

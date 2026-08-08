@@ -3,7 +3,6 @@ import { ArenaMode, Language, Player, Theme } from '../types';
 import { Users, QrCode, Play, ShieldAlert, Globe, Compass, X, HelpCircle } from 'lucide-react';
 import { saveLanguagePreference } from '../i18n';
 import SlimeAvatar from './SlimeAvatar';
-import HomeLink from './HomeLink';
 import FullscreenCountdown from './FullscreenCountdown';
 
 interface Props {
@@ -67,7 +66,7 @@ export const LobbyScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_top,#172554_0%,#0f172a_42%,#020617_100%)] text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8 overflow-y-auto">
+    <div className="fixed inset-0 z-50 w-full max-w-full overflow-x-hidden overscroll-none touch-pan-y bg-[radial-gradient(circle_at_top,#172554_0%,#0f172a_42%,#020617_100%)] text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8">
       <FullscreenCountdown value={secondsLeft || 0} label={t('countdown.gameStart')} active={Boolean(lobbyEndsAt)} />
       <div className="pointer-events-none absolute left-[-5rem] top-20 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl" />
       <div className="pointer-events-none absolute bottom-10 right-[-4rem] h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -79,7 +78,7 @@ export const LobbyScreen: React.FC<Props> = ({
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">{t('app.title')}</h1>
-            <p className="text-[10px] sm:text-xs text-slate-400 font-mono font-bold">snake-samurai · v{__REPO_COMMIT_COUNT__} {__BUILD_DATE__}</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 font-bold">日本語を、ことば遊びで学ぼう。</p>
           </div>
         </div>
 
@@ -256,15 +255,14 @@ export const LobbyScreen: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Shared remote-controlled countdown */}
+        {/* Match waiting status */}
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-          <HomeLink className="hidden lg:inline-flex" />
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] text-slate-400 font-bold uppercase">{lobbyEndsAt ? t('trivia.time') : '遥控器状态'}</div>
-            <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : '等待开启'}</div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase">{lobbyEndsAt ? '距离开始' : '等待时间'}</div>
+            <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : '准备中'}</div>
           </div>
           <div className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-center text-sm font-black text-cyan-100">
-            {lobbyEndsAt ? '遥控器已开启集结' : '请由乱戦遥控器开启集结'}
+            {lobbyEndsAt ? `游戏将在 ${secondsLeft} 秒后开始` : '正在等待下一场游戏'}
           </div>
         </div>
       </footer>
