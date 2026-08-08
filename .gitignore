@@ -1,6 +1,9 @@
 node_modules/
 frontend/dist/
+frontend/static/
+dist/
+static/
 frontend/public/assets/*-source.png
 .vercel/
-.env*
 .vercel
+.env*

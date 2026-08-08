@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "vercel-build": "vite build && mkdir -p .vercel/output/static && cp -r dist/* .vercel/output/static/ && echo '{\"version\": 3, \"routes\": [{\"handle\": \"filesystem\"}, {\"src\": \"/(.*)\", \"dest\": \"/index.html\"}]}' > .vercel/output/config.json",
+    "vercel-build": "node ../scripts/prepare-vercel-build.js",
     "preview": "vite preview"
   },
   "dependencies": {
