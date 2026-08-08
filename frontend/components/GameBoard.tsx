@@ -6,6 +6,7 @@ import { searchCandidates } from '../language/trieEngine';
 import { analyzeSentenceBuilding } from '../language/sentenceEngine';
 import { audio } from '../audio';
 import { saveLanguagePreference } from '../i18n';
+import FullscreenCountdown from './FullscreenCountdown';
 import { Trophy, Sparkles, Globe, HelpCircle, QrCode, X } from 'lucide-react';
 
 type MutableRef<T> = React.MutableRefObject<T>;
@@ -431,6 +432,7 @@ export const GameBoard: React.FC<Props> = ({
           </div>
         </div>
       )}
+      <FullscreenCountdown value={timeRemainingSeconds} label={t('countdown.matchEnd')} />
     </div>
   );
 };
