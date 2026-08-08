@@ -1,13 +1,11 @@
 {
   "name": "snake-samurai",
-  "type": "module",
   "workspaces": [
     "frontend",
     "backend"
   ],
   "scripts": {
-    "build": "node scripts/prepare-vercel-build.js",
-    "vercel-build": "node scripts/prepare-vercel-build.js",
+    "build": "npm run build --prefix frontend",
     "start": "npm run preview --prefix frontend",
     "dev-frontend": "npm run dev --prefix frontend",
     "dev-backend": "npm run dev --prefix backend",

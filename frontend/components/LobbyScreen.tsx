@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { ArenaMode, Language, Player, Theme } from '../types';
-import { Users, QrCode, Play, Sparkles, ShieldAlert, Globe, Compass, X, HelpCircle } from 'lucide-react';
+import { Users, QrCode, Play, ShieldAlert, Globe, Compass, X, HelpCircle } from 'lucide-react';
 import { saveLanguagePreference } from '../i18n';
+import SlimeAvatar from './SlimeAvatar';
+import HomeLink from './HomeLink';
 
 interface Props {
   player: Player;
@@ -61,12 +63,14 @@ export const LobbyScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_top,#172554_0%,#0f172a_42%,#020617_100%)] text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8 overflow-y-auto">
+      <div className="pointer-events-none absolute left-[-5rem] top-20 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-10 right-[-4rem] h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
       {/* Top Header: Title, FAQ, QR Code & Language Selector */}
       <header className="w-full max-w-4xl mx-auto flex items-center justify-between z-20 gap-2 shrink-0 pb-2">
         <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-cyan-500/20 border border-cyan-500/40 rounded-2xl">
-            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
+          <div className="h-12 w-12 shrink-0 rounded-2xl border border-cyan-300/30 bg-cyan-300/10 p-1 shadow-[0_0_24px_rgba(34,211,238,.16)]">
+            <SlimeAvatar color={player.color} className="h-full w-full" alt="聴風・侍蛇" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">{t('app.title')}</h1>
@@ -249,6 +253,7 @@ export const LobbyScreen: React.FC<Props> = ({
 
         {/* Start Button & Countdown */}
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+          <HomeLink className="hidden lg:inline-flex" />
           <div className="text-right hidden sm:block">
             <div className="text-[10px] text-slate-400 font-bold uppercase">{t('trivia.time')}</div>
             <div className="text-xl font-mono font-black text-cyan-400">{secondsLeft}s</div>

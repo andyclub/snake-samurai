@@ -1,6 +1,8 @@
 import React from 'react';
 import { ArenaState, Player } from '../types';
 import { Trophy, Award, Sparkles, RotateCcw } from 'lucide-react';
+import SlimeAvatar from './SlimeAvatar';
+import HomeLink from './HomeLink';
 
 interface Props {
   arenaState: ArenaState;
@@ -16,8 +18,9 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
   const winner = leaderboard[0];
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950 text-white flex flex-col items-center justify-center p-6 overflow-y-auto">
-      <div className="max-w-2xl w-full bg-slate-900 border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
+    <div className="fixed inset-0 z-50 bg-[radial-gradient(circle_at_center,#3b0764_0%,#0f172a_55%,#020617_100%)] text-white flex flex-col items-center justify-center p-6 overflow-y-auto">
+      <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'conic-gradient(from 0deg at 50% 50%, transparent, #fbbf24, transparent 20%)', animation: 'spin 8s linear infinite' }} />
+      <div className="relative max-w-2xl w-full bg-black/45 backdrop-blur-sm border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
         {/* Banner Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-black">
@@ -26,6 +29,7 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
           <h1 className="text-4xl font-black tracking-tight text-white">
             {winner ? `👑 Champion: ${winner.nickname}` : '比赛回顾'}
           </h1>
+          {winner && <SlimeAvatar color={winner.baseColor} className="mx-auto h-28 w-28" alt={winner.nickname} />}
           <p className="text-slate-400 text-sm">
             有效蛇身长度唯一决定最终胜负排名
           </p>
@@ -111,6 +115,7 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
         >
           <RotateCcw className="w-5 h-5" /> 返回大厅 / 开启下一局
         </button>
+        <div className="text-center"><HomeLink /></div>
       </div>
     </div>
   );

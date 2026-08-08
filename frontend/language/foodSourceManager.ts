@@ -42,15 +42,18 @@ export async function loadThemeGlyphPool(theme: Theme): Promise<FoodGlyphItem[]>
     }
   }
 
-  // 2. Load from Supabase tables (ransen_* for free/random, bosai_* for disaster)
+  // 2. Load from the shared Chofu-Ransen question bank. The bousai corpus is
+  // stored in jec.ransen_questions with the Japanese level label "防災".
   try {
-    const targetPrefix = theme === 'disaster' ? 'bosai' : 'ransen';
-
-    // Query questions or word tables
-    const { data: questions } = await supabase
-      .from(`${targetPrefix}_questions`)
+    let questionQuery = supabase
+      .from('ransen_questions')
       .select('text, options')
+      .eq('active', true)
       .limit(50);
+    if (theme === 'disaster') questionQuery = questionQuery.eq('level', '防災');
+
+    const { data: questions, error } = await questionQuery;
+    if (error) throw error;
 
     if (questions && questions.length > 0) {
       for (const q of questions) {
