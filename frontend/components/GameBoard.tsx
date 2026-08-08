@@ -224,8 +224,9 @@ export const GameBoard: React.FC<Props> = ({
         <div className="bg-slate-900/90 border border-cyan-500/30 backdrop-blur-md rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-xl flex items-center gap-2 sm:gap-3">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-pulse" />
           <div>
-            <div className="text-[9px] sm:text-[10px] tracking-wider text-cyan-300 font-bold">
-              {mode === 'disaster' ? t('arena.disaster') : mode === 'random' ? t('arena.title') : t('arena.permanent')}
+            <div className="text-[9px] sm:text-[10px] tracking-wider text-cyan-300 font-bold flex items-center gap-2">
+              <span>{mode === 'disaster' ? t('arena.disaster') : mode === 'random' ? t('arena.title') : t('arena.permanent')}</span>
+              <span className="text-slate-400 font-mono text-[8px] sm:text-[9px]">v{__REPO_COMMIT_COUNT__} {__BUILD_DATE__}</span>
             </div>
             <div className="text-xs sm:text-sm font-black text-white">
               {t(`theme.${theme}`)}

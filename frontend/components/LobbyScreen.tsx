@@ -70,7 +70,7 @@ export const LobbyScreen: React.FC<Props> = ({
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-black text-white tracking-tight">{t('app.title')}</h1>
-            <p className="text-[10px] sm:text-xs text-slate-400">snake-samurai</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 font-mono font-bold">snake-samurai · v{__REPO_COMMIT_COUNT__} {__BUILD_DATE__}</p>
           </div>
         </div>
 
