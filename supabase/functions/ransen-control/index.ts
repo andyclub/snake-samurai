@@ -6,10 +6,7 @@ const allowedOrigins = new Set(["https://g.kazeabc.com", "https://h.kazeabc.com"
 
 const isAllowedOrigin = (origin: string | null): boolean => {
   if (!origin) return true;
-  if (allowedOrigins.has(origin)) return true;
-  if (origin.endsWith('.kazeabc.com')) return true;
-  if (origin.endsWith('.vercel.app')) return true;
-  return false;
+  return allowedOrigins.has(origin);
 };
 
 const cors = (origin: string | null) => ({
