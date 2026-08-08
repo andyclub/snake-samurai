@@ -48,6 +48,9 @@ export default defineConfig(({ mode }) => {
         },
       },
       plugins: react(),
+      build: {
+        chunkSizeWarningLimit: 1000,
+      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
