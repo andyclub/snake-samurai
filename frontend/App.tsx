@@ -4,6 +4,7 @@ import { translations, getBrowserLanguage } from './i18n';
 import GameBoard from './components/GameBoard';
 import LobbyScreen from './components/LobbyScreen';
 import TheaterScreen from './components/TheaterScreen';
+import GameOffScreen from './components/GameOffScreen';
 import { audio } from './audio';
 import { useSnakeSamuraiMultiplayer } from './useSnakeSamuraiMultiplayer';
 import { generateInitialFoods, generateSingleFood } from './game/foodGenerator';
@@ -13,7 +14,7 @@ import { settleSentence, settleWord } from './game/settleManager';
 import { updateBotAI } from './game/botAI';
 import { searchCandidates } from './language/trieEngine';
 import { analyzeSentenceBuilding } from './language/sentenceEngine';
-import { callSnakeSamuraiControl } from './supabase';
+import { callSnakeSamuraiControl, claimSnakeSamuraiStart, persistSnakeSamuraiSnapshot, SNAKE_SAMURAI_ROOM_ID } from './supabase';
 
 const INITIAL_BOUNDS: ArenaBounds = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
 const KATAKANA = ['アオイ', 'カゼ', 'ソラ', 'ナギ', 'リン', 'ユキ', 'ハル', 'レイ', 'ミオ', 'ルイ'];
@@ -35,6 +36,7 @@ const App: React.FC = () => {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
+  const [manualBots, setManualBots] = useState<Player[]>([]);
 
   // Player State
   const [player, setPlayer] = useState<Player>(() => ({
@@ -55,10 +57,28 @@ const App: React.FC = () => {
   const foodsRef = useRef<Record<string, FoodState>>({});
   const boundsRef = useRef<ArenaBounds>(INITIAL_BOUNDS);
   const themeRef = useRef(theme);
+  const battleMusicRef = useRef<'BATTLE' | 'BLADE_BATTLE'>('BATTLE');
+  const startAttemptForDeadlineRef = useRef<number | null>(null);
+  const serverClockShiftRef = useRef(0);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
   useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
   useEffect(() => { themeRef.current = theme; }, [theme]);
+
+  useEffect(() => {
+    const unlockAudio = () => audio.init();
+    document.addEventListener('pointerdown', unlockAudio, { passive: true });
+    document.addEventListener('touchend', unlockAudio, { passive: true });
+    document.addEventListener('keydown', unlockAudio);
+    const resumeAudio = () => { if (!document.hidden) audio.init(); };
+    document.addEventListener('visibilitychange', resumeAudio);
+    return () => {
+      document.removeEventListener('pointerdown', unlockAudio);
+      document.removeEventListener('touchend', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+      document.removeEventListener('visibilitychange', resumeAudio);
+    };
+  }, []);
 
   const handleUpdatePlayer = (name: string, color: string) => {
     localStorage.setItem('kazeabc_name', name);
@@ -100,20 +120,27 @@ const App: React.FC = () => {
   }, []);
 
   // Multiplayer Hook
-  const { isHost, onlinePlayers, sendMoveIntent, broadcastSnapshot } = useSnakeSamuraiMultiplayer({
-    roomId: 'main',
+  const { userId, isHost, onlinePlayers, sendMoveIntent, broadcastSnapshot, requestSnapshot } = useSnakeSamuraiMultiplayer({
+    roomId: SNAKE_SAMURAI_ROOM_ID,
     player,
     phaseRef,
     onCommand: async (cmd, payload) => {
       if (cmd === 'on' || cmd === 'restart') {
         if (payload.mode) setMode(payload.mode);
         if (payload.theme) setTheme(payload.theme);
-        setLobbyEndsAt(payload.lobbyEndsAt || Date.now() + 30_000);
+        setLobbyEndsAt(typeof payload.lobbyEndsAt === 'number' ? payload.lobbyEndsAt : Date.now() + 30_000);
+        setManualBots([]);
         phaseRef.current = GamePhase.LOBBY;
         setPhase(GamePhase.LOBBY);
       } else if (cmd === 'off') {
+        audio.setBGM('OFF');
         phaseRef.current = GamePhase.OFF;
         setPhase(GamePhase.OFF);
+      } else if (cmd === 'add_bot' && phaseRef.current === GamePhase.LOBBY && payload.bot?.id) {
+        const bot = { ...payload.bot, isBot: true } as Player;
+        setManualBots(previous => previous.some(item => item.id === bot.id) ? previous : [...previous, bot]);
+      } else if (cmd === 'replay' && phaseRef.current === GamePhase.THEATER) {
+        audio.setBGM('DEFEAT');
       }
       return { ok: true, message: 'Command executed' };
     },
@@ -131,6 +158,9 @@ const App: React.FC = () => {
       if (snapshot.phase === GamePhase.PLAYING) {
         phaseRef.current = GamePhase.PLAYING;
         setPhase(GamePhase.PLAYING);
+      } else if (snapshot.phase === GamePhase.THEATER) {
+        phaseRef.current = GamePhase.THEATER;
+        setPhase(GamePhase.THEATER);
       }
     },
     onMoveIntent: (playerId, targetX, targetY) => {
@@ -141,7 +171,7 @@ const App: React.FC = () => {
       }
     },
     getSnapshot: () => ({
-      id: 'main',
+      id: SNAKE_SAMURAI_ROOM_ID,
       mode,
       theme,
       phase: phaseRef.current,
@@ -155,6 +185,10 @@ const App: React.FC = () => {
     })
   });
 
+  useEffect(() => {
+    if (userId && player.id !== userId) setPlayer(previous => ({ ...previous, id: userId }));
+  }, [userId, player.id]);
+
   // Handle Mode Selection in Lobby
   const handleSelectMode = (newMode: ArenaMode, newTheme: Theme) => {
     setMode(newMode);
@@ -162,7 +196,7 @@ const App: React.FC = () => {
   };
 
   // Start Match with 3 head diameters starting snake for selected mode & theme
-  const startMatch = useCallback((selectedMode?: ArenaMode, selectedTheme?: Theme) => {
+  const startMatch = useCallback(async (selectedMode?: ArenaMode, selectedTheme?: Theme) => {
     const activeMode = selectedMode || mode;
     const activeTheme = selectedTheme || theme;
 
@@ -170,71 +204,79 @@ const App: React.FC = () => {
     setTheme(activeTheme);
     themeRef.current = activeTheme;
 
-    const now = Date.now();
     const allSnakes: Record<string, SnakeState> = {};
+    const humansById = new Map(onlinePlayers.filter(member => !member.isSpectator && !member.isBot).map(member => [member.id, member]));
+    humansById.set(player.id, player);
+    const humans = [...humansById.values()];
+    const automaticBots: Player[] = humans.length === 1
+      ? INITIAL_BOTS.slice(0, 3).map(bot => ({ id: bot.id, name: bot.name, color: bot.color, isBot: true, iq: bot.level }))
+      : [];
+    const entrants = [
+      ...humans.map(member => ({ player: member, origin: undefined as 'automatic' | 'manual' | undefined })),
+      ...automaticBots.map(member => ({ player: member, origin: 'automatic' as const })),
+      ...manualBots.map(member => ({ player: member, origin: 'manual' as const })),
+    ];
 
-    const mySnakeId = `snake-${player.id}`;
-    allSnakes[mySnakeId] = createPlayerSnake(player);
-
-    // Add 3 Active Bot Snakes
-    INITIAL_BOTS.forEach((botDef, index) => {
-      const botId = `snake-${botDef.id}`;
+    entrants.forEach(({ player: entrant, origin }, index) => {
+      const botId = `snake-${entrant.id}`;
       const startX = (index + 1) * 200 * (index % 2 === 0 ? 1 : -1);
       const startY = (index + 1) * 150 * (index % 2 === 0 ? -1 : 1);
-      const botPath = Array.from({ length: 9 }, (_, i) => ({ x: startX - i * 14, y: startY }));
-
+      const snake = createPlayerSnake(entrant);
       allSnakes[botId] = {
-        id: botId,
-        playerId: botDef.id,
-        nickname: botDef.name,
-        baseColor: botDef.color,
+        ...snake,
+        id: botId, playerId: entrant.id, nickname: entrant.name, baseColor: entrant.color,
         head: { x: startX, y: startY },
-        direction: { x: 1, y: 0 },
         target: { x: startX + 50, y: startY + 50 },
-        bodyPath: botPath,
-        bodySegments: Array.from({ length: 3 }, (_, i) => ({
-          id: `bot-base-seg-${i}`,
-          type: 'base',
-          lengthUnits: 1,
-          colorMode: 'player',
-          color: botDef.color
-        })),
-        baseLength: 0,
-        earnedLength: 0,
-        totalLength: 0,
-        currentSpeed: 180,
-        heldFoods: [],
-        buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
-        completionHistory: [],
-        isBot: true,
-        botLevel: botDef.level,
-        connected: true
+        bodyPath: Array.from({ length: 9 }, (_, i) => ({ x: startX - i * 14, y: startY })),
+        isBot: entrant.isBot,
+        botLevel: entrant.isBot ? Math.max(1, Math.min(4, Math.round((entrant.iq || 50) / 25))) : undefined,
+        botOrigin: origin,
       };
     });
 
     const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS, undefined, activeTheme);
 
+    const proposedAt = Date.now();
+    const proposedSnapshot: ArenaState = {
+      id: SNAKE_SAMURAI_ROOM_ID, mode: activeMode, theme: activeTheme, phase: GamePhase.PLAYING,
+      startedAt: proposedAt, endsAt: proposedAt + 120_000, bounds: INITIAL_BOUNDS,
+      snakes: allSnakes, foods: initFoods, leaderboard: [], version: 1
+    };
+    const claim = await claimSnakeSamuraiStart(proposedSnapshot, SNAKE_SAMURAI_ROOM_ID);
+    if (!claim.ok || !claim.snapshot?.snakes) {
+      await requestSnapshot();
+      return false;
+    }
+    const clockShift = claim.serverNow ? Date.now() - Date.parse(claim.serverNow) : 0;
+    serverClockShiftRef.current = clockShift;
+    const claimedSnapshot = claim.snapshot as ArenaState;
+    const now = typeof claimedSnapshot.startedAt === 'number' ? claimedSnapshot.startedAt + clockShift : Date.now();
+    const claimedSnakes = claimedSnapshot.snakes;
+    const claimedFoods = claimedSnapshot.foods || initFoods;
+
     // Populate Physics Engine Refs Directly
-    snakesRef.current = allSnakes;
-    foodsRef.current = initFoods;
+    snakesRef.current = claimedSnakes;
+    foodsRef.current = claimedFoods;
     boundsRef.current = INITIAL_BOUNDS;
     phaseRef.current = GamePhase.PLAYING;
     startedAtRef.current = now;
 
     // Trigger React State Updates
-    setSnakes(allSnakes);
-    setFoods(initFoods);
+    setSnakes(claimedSnakes);
+    setFoods(claimedFoods);
     setBounds(INITIAL_BOUNDS);
     setStartedAt(now);
     setPhase(GamePhase.PLAYING);
     broadcastSnapshot({
-      id: 'main', mode: activeMode, theme: activeTheme, phase: GamePhase.PLAYING,
+      id: SNAKE_SAMURAI_ROOM_ID, mode: activeMode, theme: activeTheme, phase: GamePhase.PLAYING,
       startedAt: now, endsAt: now + 120_000, bounds: INITIAL_BOUNDS,
-      snakes: allSnakes, foods: initFoods, leaderboard: [], version: 1
+      snakes: claimedSnakes, foods: claimedFoods, leaderboard: [], version: 1
     });
     audio.init();
+    battleMusicRef.current = 'BATTLE';
     audio.setBGM('BATTLE');
-  }, [mode, theme, player, createPlayerSnake, broadcastSnapshot]);
+    return true;
+  }, [mode, theme, player, onlinePlayers, manualBots, createPlayerSnake, broadcastSnapshot, requestSnapshot]);
 
   // The shared Ransen remote is the sole way to open a round. Every snake
   // client follows the same cloud lobby deadline and starts locally together.
@@ -245,42 +287,58 @@ const App: React.FC = () => {
       const control = await callSnakeSamuraiControl('GET');
       if (cancelled || !control.ok) return;
       if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
-        const deadline = Date.parse(control.lobbyEndsAt);
+        const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
+        serverClockShiftRef.current = clockShift;
+        const deadline = Date.parse(control.lobbyEndsAt) + clockShift;
         if (Number.isFinite(deadline)) setLobbyEndsAt(deadline);
+      } else if (control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) {
+        await requestSnapshot();
       }
     };
     void syncLobby();
     const interval = window.setInterval(syncLobby, 3_000);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [phase]);
+  }, [phase, requestSnapshot]);
 
   useEffect(() => {
     if (phase !== GamePhase.LOBBY || !lobbyEndsAt) return;
     const tick = () => {
-      if (Date.now() >= lobbyEndsAt && isHost) startMatch();
+      if (Date.now() >= lobbyEndsAt && isHost && startAttemptForDeadlineRef.current !== lobbyEndsAt) {
+        startAttemptForDeadlineRef.current = lobbyEndsAt;
+        void startMatch().then(started => {
+          if (!started) startAttemptForDeadlineRef.current = null;
+        });
+      }
     };
     tick();
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
   }, [phase, lobbyEndsAt, startMatch, isHost]);
 
-  // The elected host is authoritative: add joined human players once, then
-  // all browsers render the same shared snapshot instead of local bot rounds.
+  // All clients derive both the HUD timer and music stage from the same
+  // server-normalized start time, independent of physics host election.
   useEffect(() => {
-    if (!isHost || phase !== GamePhase.PLAYING) return;
-    let changed = false;
-    const next = { ...snakesRef.current };
-    for (const joined of onlinePlayers) {
-      const id = `snake-${joined.id}`;
-      if (!next[id]) { next[id] = createPlayerSnake(joined); changed = true; }
+    if (phase === GamePhase.THEATER) {
+      audio.setBGM('DEFEAT');
+      return;
     }
-    if (changed) snakesRef.current = next;
-  }, [isHost, onlinePlayers, phase, createPlayerSnake]);
+    if (phase !== GamePhase.PLAYING || !startedAt) return;
+    const tick = () => {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      setTimeRemaining(Math.max(0, 120 - elapsed));
+      const nextMusic = elapsed >= 60 ? 'BLADE_BATTLE' : 'BATTLE';
+      if (battleMusicRef.current !== nextMusic) battleMusicRef.current = nextMusic;
+      audio.setBGM(nextMusic);
+    };
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [phase, startedAt]);
 
   useEffect(() => {
     if (!isHost || phase !== GamePhase.PLAYING) return;
     const publish = () => broadcastSnapshot({
-      id: 'main', mode: mode, theme: themeRef.current, phase: GamePhase.PLAYING,
+      id: SNAKE_SAMURAI_ROOM_ID, mode: mode, theme: themeRef.current, phase: GamePhase.PLAYING,
       startedAt: startedAtRef.current, endsAt: startedAtRef.current ? startedAtRef.current + 120_000 : null,
       bounds: boundsRef.current, snakes: snakesRef.current, foods: foodsRef.current, leaderboard: [], version: 1
     });
@@ -288,6 +346,23 @@ const App: React.FC = () => {
     const timer = window.setInterval(publish, 120);
     return () => window.clearInterval(timer);
   }, [isHost, phase, mode, broadcastSnapshot]);
+
+  useEffect(() => {
+    if (!isHost || phase !== GamePhase.PLAYING) return;
+    const persist = () => {
+      const localStartedAt = startedAtRef.current;
+      if (!localStartedAt) return;
+      void persistSnakeSamuraiSnapshot({
+        id: SNAKE_SAMURAI_ROOM_ID, mode, theme: themeRef.current, phase: GamePhase.PLAYING,
+        startedAt: localStartedAt - serverClockShiftRef.current,
+        endsAt: localStartedAt - serverClockShiftRef.current + 120_000,
+        bounds: boundsRef.current, snakes: snakesRef.current, foods: foodsRef.current,
+        leaderboard: [], version: 1,
+      }, SNAKE_SAMURAI_ROOM_ID);
+    };
+    const timer = window.setInterval(persist, 3_000);
+    return () => window.clearInterval(timer);
+  }, [isHost, phase, mode]);
 
   // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
@@ -309,11 +384,27 @@ const App: React.FC = () => {
         const remaining = Math.max(0, 120 - elapsed);
         setTimeRemaining(remaining);
 
+        // Escalate the battle soundtrack exactly one minute into a round.
+        const nextMusic = elapsed >= 60 ? 'BLADE_BATTLE' : 'BATTLE';
+        if (battleMusicRef.current !== nextMusic) {
+          battleMusicRef.current = nextMusic;
+          audio.setBGM(nextMusic);
+        }
+
         if (remaining <= 0) {
+          const finalSnapshot: ArenaState = {
+            id: SNAKE_SAMURAI_ROOM_ID, mode, theme: themeRef.current, phase: GamePhase.THEATER,
+            startedAt: currentStartedAt - serverClockShiftRef.current,
+            endsAt: currentStartedAt - serverClockShiftRef.current + 120_000,
+            bounds: boundsRef.current, snakes: snakesRef.current, foods: foodsRef.current,
+            leaderboard: [], version: 1,
+          };
+          broadcastSnapshot(finalSnapshot);
+          void persistSnakeSamuraiSnapshot(finalSnapshot, SNAKE_SAMURAI_ROOM_ID);
           phaseRef.current = GamePhase.THEATER;
           setPhase(GamePhase.THEATER);
           audio.playVictory();
-          audio.setBGM('OFF');
+          audio.setBGM('DEFEAT');
           return;
         }
 
@@ -421,7 +512,7 @@ const App: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, player, createPlayerSnake, isHost]);
+  }, [phase, player, createPlayerSnake, isHost, mode, broadcastSnapshot]);
 
   // Note: GameBoard reads directly from snakesRef/foodsRef/boundsRef for 60fps rendering
   // and manages its own 150ms HUD sync internally.
@@ -491,10 +582,13 @@ const App: React.FC = () => {
 
   return (
     <div className="w-screen h-[100dvh] bg-slate-950 text-white font-sans overflow-hidden">
+      {phase === GamePhase.OFF && (
+        <GameOffScreen t={(k) => translations[lang]?.[k] || k} arenaName="聴風・侍蛇" gameUrl="https://h.kazeabc.com" />
+      )}
       {phase === GamePhase.LOBBY && (
         <LobbyScreen
           player={player}
-          players={[player, ...INITIAL_BOTS.map(b => ({ id: b.id, name: b.name, color: b.color, isBot: true }))]}
+          players={[...onlinePlayers, ...manualBots]}
           selectedMode={mode}
           onSelectMode={handleSelectMode}
           onUpdatePlayer={handleUpdatePlayer}

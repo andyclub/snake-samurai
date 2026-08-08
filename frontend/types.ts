@@ -111,6 +111,7 @@ export interface SnakeState {
   completionHistory: CompletionRecord[];
   isBot: boolean;
   botLevel?: number;
+  botOrigin?: 'automatic' | 'manual';
   connected: boolean;
   invulnerableUntil?: number;
   onBoundary?: boolean;

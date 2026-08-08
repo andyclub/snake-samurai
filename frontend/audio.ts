@@ -2,6 +2,8 @@ class AudioManager {
   ctx: AudioContext | null = null;
   mainBgm: HTMLAudioElement | null = null;
   battleBgm: HTMLAudioElement | null = null;
+  bladeBattleBgm: HTMLAudioElement | null = null;
+  defeatBgm: HTMLAudioElement | null = null;
   bgmScene = '';
   questionSpeechToken = 0;
   questionRetryTimer: number | null = null;
@@ -12,12 +14,20 @@ class AudioManager {
     if (this.mainBgm || typeof Audio === 'undefined') return;
     this.mainBgm = new Audio('/audio/ran_music.mp3');
     this.battleBgm = new Audio('/audio/battle.mp3');
+    this.bladeBattleBgm = new Audio('/audio/blade_battle.mp3');
+    this.defeatBgm = new Audio('/audio/cold_wind_failed.mp3');
     this.mainBgm.loop = true;
     this.battleBgm.loop = true;
+    this.bladeBattleBgm.loop = true;
+    this.defeatBgm.loop = true;
     this.mainBgm.preload = 'auto';
     this.battleBgm.preload = 'auto';
+    this.bladeBattleBgm.preload = 'auto';
+    this.defeatBgm.preload = 'auto';
     this.mainBgm.volume = .42;
     this.battleBgm.volume = .52;
+    this.bladeBattleBgm.volume = .52;
+    this.defeatBgm.volume = .46;
   }
 
   private playTrack(track: HTMLAudioElement | null) {
@@ -30,6 +40,7 @@ class AudioManager {
   private duckBGM(ducked: boolean) {
     if (this.mainBgm) this.mainBgm.volume = ducked ? .14 : .42;
     if (this.battleBgm) this.battleBgm.volume = ducked ? .18 : .52;
+    if (this.bladeBattleBgm) this.bladeBattleBgm.volume = ducked ? .18 : .52;
   }
 
   init() {
@@ -50,7 +61,7 @@ class AudioManager {
     }
     this.ensureBGM();
     if (this.bgmScene && this.bgmScene !== 'OFF') {
-      this.playTrack(this.bgmScene === 'BATTLE' ? this.battleBgm : this.mainBgm);
+      this.playTrack(this.getTrack(this.bgmScene));
     }
   }
 
@@ -367,21 +378,30 @@ class AudioManager {
     this.init();
     this.ensureBGM();
     if (this.bgmScene === phase) {
-      this.playTrack(phase === 'BATTLE' ? this.battleBgm : phase === 'OFF' ? null : this.mainBgm);
+      this.playTrack(this.getTrack(phase));
       return;
     }
     const previousScene = this.bgmScene;
     this.bgmScene = phase;
     this.mainBgm?.pause();
     this.battleBgm?.pause();
-    if (previousScene === 'BATTLE' && this.battleBgm) this.battleBgm.currentTime = 0;
+    this.bladeBattleBgm?.pause();
+    this.defeatBgm?.pause();
+    const previousTrack = this.getTrack(previousScene);
+    if (previousTrack) previousTrack.currentTime = 0;
     if (phase === 'OFF') return;
-    this.playTrack(phase === 'BATTLE' ? this.battleBgm : this.mainBgm);
+    this.playTrack(this.getTrack(phase));
+  }
+
+  private getTrack(phase: string) {
+    if (phase === 'BATTLE') return this.battleBgm;
+    if (phase === 'BLADE_BATTLE') return this.bladeBattleBgm;
+    if (phase === 'DEFEAT') return this.defeatBgm;
+    return phase === 'OFF' ? null : this.mainBgm;
   }
 
   playOutcome(won: boolean) {
-    this.setBGM('OFF');
-    this.bgmScene = won ? 'VICTORY' : 'DEFEAT';
+    this.setBGM(won ? 'OFF' : 'DEFEAT');
     if (won) this.playVictory();
     else {
       this.init(); if (!this.ctx) return;

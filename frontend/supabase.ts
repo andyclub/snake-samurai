@@ -51,7 +51,9 @@ export const loadSnakeSamuraiQuestions = (levels?: string[]) => {
   return request;
 };
 
-export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Record<string, unknown>, roomId = 'main') => {
+export const SNAKE_SAMURAI_ROOM_ID = 'snake-samurai';
+
+export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Record<string, unknown>, roomId = SNAKE_SAMURAI_ROOM_ID) => {
   const tryEndpoint = async (fnName: string) => {
     const url = `${SUPABASE_URL}/functions/v1/${fnName}?room=${encodeURIComponent(roomId)}`;
     const response = await fetch(url, {
@@ -82,7 +84,10 @@ export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Rec
   }
 };
 
-export const persistSnakeSamuraiSnapshot = async (snapshot: Record<string, any>, roomId = 'main') => {
+// Shared arena cards still query the common controller by its historical name.
+export const callRansenControl = callSnakeSamuraiControl;
+
+export const persistSnakeSamuraiSnapshot = async (snapshot: Record<string, any>, roomId = SNAKE_SAMURAI_ROOM_ID) => {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control`, {
       method: 'PUT',
@@ -91,11 +96,11 @@ export const persistSnakeSamuraiSnapshot = async (snapshot: Record<string, any>,
     });
     return response.ok;
   } catch {
-    return true;
+    return false;
   }
 };
 
-export const claimSnakeSamuraiStart = async (snapshot: Record<string, any>, roomId = 'main') => {
+export const claimSnakeSamuraiStart = async (snapshot: Record<string, any>, roomId = SNAKE_SAMURAI_ROOM_ID) => {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control`, {
       method: 'POST',
@@ -105,11 +110,11 @@ export const claimSnakeSamuraiStart = async (snapshot: Record<string, any>, room
     const data = await response.json().catch(() => ({ ok: true }));
     return { ...data, status: response.status } as { ok: boolean; status: number; code?: string; message?: string; startedAt?: number; serverNow?: string; snapshot?: Record<string, any> };
   } catch {
-    return { ok: true, status: 200 };
+    return { ok: false, status: 0, message: '开局服务不可用' };
   }
 };
 
-export const registerSnakeSamuraiPlayer = async (player: Record<string, any>, roomId = 'main') => {
+export const registerSnakeSamuraiPlayer = async (player: Record<string, any>, roomId = SNAKE_SAMURAI_ROOM_ID) => {
   try {
     const response = await fetch(`${SUPABASE_URL}/functions/v1/ransen-control`, {
       method: 'POST',
@@ -119,6 +124,6 @@ export const registerSnakeSamuraiPlayer = async (player: Record<string, any>, ro
     const data = await response.json().catch(() => ({ ok: true, admitted: true }));
     return { ...data, status: response.status } as { ok: boolean; admitted?: boolean; message?: string; playerCount?: number; audienceCount?: number };
   } catch {
-    return { ok: true, admitted: true, status: 200 };
+    return { ok: false, admitted: false, status: 0, message: '玩家登记服务不可用' };
   }
 };
