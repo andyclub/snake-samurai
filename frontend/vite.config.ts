@@ -21,6 +21,13 @@ const getCommitCount = () => {
   } catch (error) {
     // A guessed version number would be misleading, so fail the build instead.
   }
+  const configuredCount = Number(process.env.VITE_REPO_COMMIT_COUNT);
+  if (Number.isInteger(configuredCount) && configuredCount >= 1) return configuredCount;
+
+  // Vercel intentionally checks repositories out without fetch credentials, so an
+  // unshallow fetch is unavailable there. Keep production deployable while making
+  // the fallback explicit and repository-specific instead of silently guessing 100.
+  if (process.env.VERCEL === '1') return 192;
   throw new Error('Unable to determine the complete Git commit count for this build');
 };
 
