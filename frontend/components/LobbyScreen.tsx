@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArenaMode, Language, Player, Theme } from '../types';
-import { Users, QrCode, Play, ShieldAlert, Globe, Compass, X, HelpCircle } from 'lucide-react';
+import { QrCode, Globe, X, HelpCircle } from 'lucide-react';
 import { saveLanguagePreference } from '../i18n';
 import SlimeAvatar from './SlimeAvatar';
 import FullscreenCountdown from './FullscreenCountdown';
@@ -10,11 +10,12 @@ interface Props {
   player: Player;
   players: Player[];
   selectedMode: ArenaMode;
-  onSelectMode: (mode: ArenaMode, theme: Theme) => void;
+  selectedTheme: Theme;
   onUpdatePlayer: (name: string, color: string) => void;
   lang: Language;
   onSelectLanguage: (lang: Language) => void;
   lobbyEndsAt?: number | null;
+  connectionError?: string;
   t: (key: string) => string;
 }
 
@@ -30,11 +31,12 @@ export const LobbyScreen: React.FC<Props> = ({
   player,
   players,
   selectedMode,
-  onSelectMode,
+  selectedTheme,
   onUpdatePlayer,
   lang,
   onSelectLanguage,
   lobbyEndsAt,
+  connectionError,
   t
 }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -62,8 +64,11 @@ export const LobbyScreen: React.FC<Props> = ({
     }
   };
 
-  const handleSelectArena = (mode: ArenaMode, theme: Theme) => {
-    onSelectMode(mode, theme);
+  const arenaUrl = (arena: 'snake-free' | 'snake-theme' | 'snake-disaster') => {
+    const url = new URL(window.location.href);
+    if (arena === 'snake-free') url.searchParams.delete('arena');
+    else url.searchParams.set('arena', arena);
+    return `${url.pathname}${url.search}${url.hash}`;
   };
 
   return (
@@ -145,82 +150,20 @@ export const LobbyScreen: React.FC<Props> = ({
         </div>
       </header>
 
-      {/* The selected server-owned playlist is compact; profile controls stay primary. */}
-      <main className="w-full max-w-md mx-auto grid grid-cols-1 gap-3 my-auto z-10 py-3">
-        {/* 1. 初级场 (新手自由场) */}
-        <button
-          type="button"
-          onClick={() => handleSelectArena('free', 'free')}
-          className={`touch-manipulation w-full text-left rounded-3xl p-4 border transition-all ${selectedMode !== 'free' ? 'hidden ' : ''}${
-            selectedMode === 'free'
-              ? 'bg-cyan-950/80 border-cyan-400 shadow-2xl shadow-cyan-500/30 ring-2 ring-cyan-400/50'
-              : 'bg-slate-900/90 border-white/15 hover:border-cyan-400/80'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2 sm:mb-4">
-            <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-              {t('arena.permanent')}
-            </span>
-            <Play className="w-5 h-5 text-cyan-400 fill-current" />
-          </div>
-          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🟢 {t('arena.default')}</h2>
-          <p className="text-xs text-slate-300 leading-relaxed mb-4">
-            新手自由场。不限制词汇主题，自由拼词组句，熟悉侍蛇游动与对战操作。
-          </p>
-          <div className="w-full py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
-            选择自由场
-          </div>
-        </button>
-
-        {/* 2. 主题场 (随机主题场) */}
-        <button
-          type="button"
-          onClick={() => handleSelectArena('random', 'travel')}
-          className={`touch-manipulation w-full text-left rounded-3xl p-4 border transition-all ${selectedMode !== 'random' ? 'hidden ' : ''}${
-            selectedMode === 'random'
-              ? 'bg-amber-950/80 border-amber-400 shadow-2xl shadow-amber-500/30 ring-2 ring-amber-400/50'
-              : 'bg-slate-900/90 border-white/15 hover:border-amber-400/80'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2 sm:mb-4">
-            <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-              {t('arena.open')}
-            </span>
-            <Play className="w-5 h-5 text-amber-400 fill-current" />
-          </div>
-          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🟡 {t('arena.title')}</h2>
-          <p className="text-xs text-slate-300 leading-relaxed mb-4">
-            随机抽签主题（旅行、学习、工作、生活、文化）。仅限与主题相符的词句结算。
-          </p>
-          <div className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
-            选择主题场
-          </div>
-        </button>
-
-        {/* 3. 防灾专场 (日本·富山市防灾) */}
-        <button
-          type="button"
-          onClick={() => handleSelectArena('disaster', 'disaster')}
-          className={`touch-manipulation w-full text-left rounded-3xl p-4 border transition-all ${selectedMode !== 'disaster' ? 'hidden ' : ''}${
-            selectedMode === 'disaster'
-              ? 'bg-red-950/80 border-red-500 shadow-2xl shadow-red-500/30 ring-2 ring-red-500/50'
-              : 'bg-slate-900/90 border-white/15 hover:border-red-400/80'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2 sm:mb-4">
-            <span className="text-[11px] sm:text-xs font-black uppercase px-3 py-0.5 sm:py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/40">
-              {t('arena.disasterOnly')}
-            </span>
-            <Play className="w-5 h-5 text-red-400 fill-current" />
-          </div>
-          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🔴 {t('arena.disaster')} · 高难度</h2>
-          <p className="text-xs text-slate-300 leading-relaxed mb-4">
-            日本·富山市防灾知识专场。包含地震、津波、避難所、高台避险等专业表达。
-          </p>
-          <div className="w-full py-2.5 rounded-xl bg-red-500 text-slate-950 font-black text-xs text-center flex items-center justify-center gap-1.5 shadow-lg">
-            选择防灾场
-          </div>
-        </button>
+      {/* Three real server playlists; profile controls remain the visual focus. */}
+      <main className="z-10 mx-auto my-auto grid w-full max-w-2xl grid-cols-3 gap-2 py-3 sm:gap-3">
+        <a href={arenaUrl('snake-free')} aria-current={selectedMode === 'free' ? 'page' : undefined}
+          className={`touch-manipulation min-w-0 rounded-2xl border p-3 text-center transition-all ${selectedMode === 'free' ? 'border-cyan-300 bg-cyan-500/20 ring-2 ring-cyan-300/40' : 'border-white/10 bg-slate-900/80'}`}>
+          <div className="text-2xl">🟢</div><h2 className="mt-1 text-sm font-black sm:text-base">自由场</h2><p className="mt-1 truncate text-[10px] text-cyan-200">自由组词</p>
+        </a>
+        <a href={arenaUrl('snake-theme')} aria-current={selectedMode === 'random' ? 'page' : undefined}
+          className={`touch-manipulation min-w-0 rounded-2xl border p-3 text-center transition-all ${selectedMode === 'random' ? 'border-amber-300 bg-amber-500/20 ring-2 ring-amber-300/40' : 'border-white/10 bg-slate-900/80'}`}>
+          <div className="text-2xl">🟡</div><h2 className="mt-1 text-sm font-black sm:text-base">主题场</h2><p className="mt-1 truncate text-[10px] text-amber-200">{selectedMode === 'random' ? t(`theme.${selectedTheme}`) : '随机主题'}</p>
+        </a>
+        <a href={arenaUrl('snake-disaster')} aria-current={selectedMode === 'disaster' ? 'page' : undefined}
+          className={`touch-manipulation min-w-0 rounded-2xl border p-3 text-center transition-all ${selectedMode === 'disaster' ? 'border-red-300 bg-red-500/20 ring-2 ring-red-300/40' : 'border-white/10 bg-slate-900/80'}`}>
+          <div className="text-2xl">🔴</div><h2 className="mt-1 text-sm font-black sm:text-base">防灾场</h2><p className="mt-1 truncate text-[10px] font-bold text-red-200">高难度 · 题库限定</p>
+        </a>
       </main>
 
       {/* Bottom Panel: Player Profile & Global Start Button */}
@@ -263,13 +206,13 @@ export const LobbyScreen: React.FC<Props> = ({
             <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : '准备中'}</div>
           </div>
           <div className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-center text-sm font-black text-cyan-100">
-            {lobbyEndsAt ? `游戏将在 ${secondsLeft} 秒后开始` : '正在等待下一场游戏'}
+            {connectionError || (lobbyEndsAt ? `游戏将在 ${secondsLeft} 秒后开始` : '正在等待下一场游戏')}
           </div>
         </div>
       </footer>
 
       {/* FAQ / Rules Modal */}
-      {showRulesModal && <SnakeFaqModal lang={lang} onClose={() => setShowRulesModal(false)} />}
+      {showRulesModal && <SnakeFaqModal lang={lang} playerColor={selectedColor} playerName={nameInput} onClose={() => setShowRulesModal(false)} />}
       {false && showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">

@@ -73,7 +73,7 @@ export const GameBoard: React.FC<Props> = ({
   // Helper to dynamically get current local player snake (reads from live ref)
   const getMySnake = () => {
     const all = snakesRef.current;
-    return all[`snake-${player.id}`] || Object.values(all).find(s => s.playerId === player.id) || Object.values(all)[0];
+    return all[`snake-${player.id}`] || Object.values(all).find(s => s.playerId === player.id);
   };
 
   // Convert screen coordinates to world coordinates & trigger target move
@@ -378,7 +378,7 @@ export const GameBoard: React.FC<Props> = ({
       </div>
 
       {/* Modals */}
-      {showRulesModal && <SnakeFaqModal lang={lang} onClose={() => setShowRulesModal(false)} />}
+      {showRulesModal && <SnakeFaqModal lang={lang} playerColor={player.color} playerName={player.name} onClose={() => setShowRulesModal(false)} />}
       {false && showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">

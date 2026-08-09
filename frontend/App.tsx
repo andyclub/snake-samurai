@@ -40,6 +40,7 @@ const App: React.FC = () => {
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
   const [manualBots, setManualBots] = useState<Player[]>([]);
   const [themeAlert, setThemeAlert] = useState('');
+  const [controlError, setControlError] = useState('');
 
   // Player State
   const [player, setPlayer] = useState<Player>(() => ({
@@ -122,8 +123,35 @@ const App: React.FC = () => {
     };
   }, []);
 
+  const applyCanonicalSnapshot = useCallback((snapshot: ArenaState, clockShift = 0) => {
+    if (!snapshot?.snakes || Object.keys(snapshot.snakes).length === 0) return false;
+    snakesRef.current = snapshot.snakes;
+    foodsRef.current = snapshot.foods || {};
+    boundsRef.current = snapshot.bounds || INITIAL_BOUNDS;
+    setSnakes({ ...snapshot.snakes });
+    setFoods({ ...(snapshot.foods || {}) });
+    setBounds(snapshot.bounds || INITIAL_BOUNDS);
+    if (snapshot.mode) setMode(snapshot.mode);
+    if (snapshot.theme) {
+      themeRef.current = snapshot.theme;
+      setTheme(snapshot.theme);
+    }
+    if (typeof snapshot.startedAt === 'number') {
+      serverClockShiftRef.current = clockShift;
+      startedAtRef.current = snapshot.startedAt;
+      setStartedAt(snapshot.startedAt);
+    }
+    setLobbyEndsAt(null);
+    if (snapshot.phase === GamePhase.PLAYING || snapshot.phase === GamePhase.THEATER) {
+      phaseRef.current = snapshot.phase;
+      setPhase(snapshot.phase);
+    }
+    setControlError('');
+    return true;
+  }, []);
+
   // Multiplayer Hook
-  const { userId, isHost, onlinePlayers, sendMoveIntent, broadcastSnapshot, requestSnapshot } = useSnakeSamuraiMultiplayer({
+  const { userId, isHost, connection, registrationError, onlinePlayers, sendMoveIntent, broadcastSnapshot, requestSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: SNAKE_SAMURAI_ROOM_ID,
     player,
     phaseRef,
@@ -147,25 +175,7 @@ const App: React.FC = () => {
       }
       return { ok: true, message: 'Command executed' };
     },
-    onSnapshot: (snapshot) => {
-      if (!snapshot?.snakes || Object.keys(snapshot.snakes).length === 0) return;
-      snakesRef.current = snapshot.snakes;
-      foodsRef.current = snapshot.foods || {};
-      boundsRef.current = snapshot.bounds || INITIAL_BOUNDS;
-      if (snapshot.mode) setMode(snapshot.mode);
-      if (snapshot.theme) setTheme(snapshot.theme);
-      if (snapshot.startedAt) {
-        startedAtRef.current = snapshot.startedAt;
-        setStartedAt(snapshot.startedAt);
-      }
-      if (snapshot.phase === GamePhase.PLAYING) {
-        phaseRef.current = GamePhase.PLAYING;
-        setPhase(GamePhase.PLAYING);
-      } else if (snapshot.phase === GamePhase.THEATER) {
-        phaseRef.current = GamePhase.THEATER;
-        setPhase(GamePhase.THEATER);
-      }
-    },
+    onSnapshot: applyCanonicalSnapshot,
     onMoveIntent: (playerId, targetX, targetY) => {
       const sId = `snake-${playerId}`;
       const s = snakesRef.current[sId];
@@ -191,12 +201,6 @@ const App: React.FC = () => {
   useEffect(() => {
     if (userId && player.id !== userId) setPlayer(previous => ({ ...previous, id: userId }));
   }, [userId, player.id]);
-
-  // Handle Mode Selection in Lobby
-  const handleSelectMode = (newMode: ArenaMode, newTheme: Theme) => {
-    setMode(newMode);
-    setTheme(newTheme);
-  };
 
   // Start Match with 3 head diameters starting snake for selected mode & theme
   const startMatch = useCallback(async (selectedMode?: ArenaMode, selectedTheme?: Theme) => {
@@ -288,37 +292,55 @@ const App: React.FC = () => {
     let cancelled = false;
     const syncLobby = async () => {
       const control = await callSnakeSamuraiControl('GET');
-      if (cancelled || !control.ok) return;
+      if (cancelled) return;
+      if (!control.ok) {
+        setControlError(control.message || '场次服务连接失败，正在重试');
+        return;
+      }
+      setControlError('');
       if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
         const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
         serverClockShiftRef.current = clockShift;
         const deadline = Date.parse(control.lobbyEndsAt) + clockShift;
         if (Number.isFinite(deadline)) setLobbyEndsAt(deadline);
-      } else if (control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) {
-        await requestSnapshot();
+      } else if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
+        const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
+        applyCanonicalSnapshot({
+          ...control.snapshot,
+          phase: control.phase,
+          startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + clockShift : null,
+          endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + clockShift : null,
+        } as ArenaState, clockShift);
       }
     };
     void syncLobby();
-    const interval = window.setInterval(syncLobby, 3_000);
+    const interval = window.setInterval(syncLobby, lobbyEndsAt && lobbyEndsAt - Date.now() < 8_000 ? 750 : 2_000);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [phase, requestSnapshot]);
+  }, [phase, lobbyEndsAt, applyCanonicalSnapshot]);
 
   useEffect(() => {
     if (phase !== GamePhase.LOBBY || !lobbyEndsAt) return;
     const tick = () => {
       if (Date.now() >= lobbyEndsAt && startAttemptForDeadlineRef.current !== lobbyEndsAt) {
         startAttemptForDeadlineRef.current = lobbyEndsAt;
-        // Match creation belongs exclusively to the room director. A client
-        // only asks for the canonical snapshot after the shared deadline.
-        void requestSnapshot().then(snapshot => {
-          if (!snapshot) startAttemptForDeadlineRef.current = null;
+        // The room director owns creation. Read its canonical snapshot directly;
+        // Realtime is an acceleration path, never the only way into a match.
+        void callSnakeSamuraiControl('GET').then(control => {
+          if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
+            const shift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
+            applyCanonicalSnapshot({ ...control.snapshot, phase: control.phase,
+              startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + shift : null,
+              endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + shift : null } as ArenaState, shift);
+          } else {
+            startAttemptForDeadlineRef.current = null;
+          }
         });
       }
     };
     tick();
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
-  }, [phase, lobbyEndsAt, requestSnapshot]);
+  }, [phase, lobbyEndsAt, applyCanonicalSnapshot]);
 
   // All clients derive both the HUD timer and music stage from the same
   // server-normalized start time, independent of physics host election.
@@ -423,12 +445,6 @@ const App: React.FC = () => {
       const prevFoods = foodsRef.current;
       let prevSnakes = { ...snakesRef.current };
       const currentTheme = themeRef.current;
-
-      // Ensure local player snake exists in game engine during PLAYING phase
-      const mySnakeId = `snake-${player.id}`;
-      if (!prevSnakes[mySnakeId]) {
-        prevSnakes[mySnakeId] = createPlayerSnake(player);
-      }
 
       let updatedFoods = { ...prevFoods };
 
@@ -640,11 +656,12 @@ const App: React.FC = () => {
           player={player}
           players={[...onlinePlayers, ...manualBots]}
           selectedMode={mode}
-          onSelectMode={handleSelectMode}
+          selectedTheme={theme}
           onUpdatePlayer={handleUpdatePlayer}
           lang={lang}
           onSelectLanguage={setLang}
           lobbyEndsAt={lobbyEndsAt}
+          connectionError={controlError || registrationError || (connection === 'error' ? '实时连接异常，正在重试' : '')}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}

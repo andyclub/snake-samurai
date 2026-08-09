@@ -82,8 +82,8 @@ export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Rec
     const errorData = await response.json().catch(() => ({ ok: false, message: '响应异常' }));
     return { ...errorData, status: response.status } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
   } catch (error) {
-    console.warn('Snake Samurai control request fallback', error);
-    return { ok: true, status: 200, phase: 'LOBBY' as GamePhase, arenaName: '侍蛇赛场', message: '已完成' };
+    console.warn('Snake Samurai control request failed', error);
+    return { ok: false, status: 0, message: '场次服务连接失败' };
   }
 };
 

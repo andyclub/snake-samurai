@@ -13,7 +13,7 @@ interface Options {
   player: Player;
   phaseRef: React.MutableRefObject<GamePhase>;
   onCommand: (command: string, payload: Record<string, any>) => CommandResult | Promise<CommandResult>;
-  onSnapshot: (snapshot: Snapshot) => void;
+  onSnapshot: (snapshot: Snapshot, clockShift?: number) => void;
   onMoveIntent: (playerId: string, targetX: number, targetY: number) => void;
   getSnapshot: () => Snapshot;
 }
@@ -37,6 +37,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
   const [userId, setUserId] = useState<string>();
   const [isHost, setIsHost] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
+  const [registrationError, setRegistrationError] = useState('');
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const hostRef = useRef(false);
@@ -70,7 +71,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
               phase: control.phase,
               startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + shift : null,
               endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + shift : null,
-            } as Snapshot);
+            } as Snapshot, shift);
           } else if (control.phase === GamePhase.OFF) {
             callbacks.current.onCommand('off', { serverState: true });
           }
@@ -93,7 +94,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
                 ...payload.snapshot,
                 startedAt: typeof payload.snapshot.startedAt === 'number' ? payload.snapshot.startedAt + shift : null,
                 endsAt: typeof payload.snapshot.endsAt === 'number' ? payload.snapshot.endsAt + shift : null,
-              });
+              }, shift);
             }
           })
           .on('broadcast', { event: 'command' }, async ({ payload }) => {
@@ -129,7 +130,10 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
             if (status === 'SUBSCRIBED') {
               setConnection('online');
               channel?.track({ player: { ...player, id }, role: 'game', onlineAt: new Date().toISOString() });
-              await registerSnakeSamuraiPlayer({ ...player, id }, roomId);
+              if (phaseRef.current === GamePhase.LOBBY) {
+                const registration = await registerSnakeSamuraiPlayer({ ...player, id }, roomId);
+                setRegistrationError(registration.ok ? '' : registration.message || '无法登记本场玩家');
+              }
               window.setTimeout(() => channel?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} }), 250);
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
               setConnection('error');
@@ -156,13 +160,13 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
   useEffect(() => {
     if (channelRef.current && connection === 'online' && userId) {
       channelRef.current.track({ player: { ...player, id: userId }, role: 'game', onlineAt: new Date().toISOString() });
-      if (phaseRef.current === GamePhase.LOBBY) void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId);
+      if (phaseRef.current === GamePhase.LOBBY) void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId).then(result => setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家'));
     }
   }, [player.name, player.color, connection, userId, roomId, phaseRef]);
 
   useEffect(() => {
     if (connection !== 'online' || !userId || phaseRef.current !== GamePhase.LOBBY) return;
-    const heartbeat = () => void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId);
+    const heartbeat = () => void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId).then(result => setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家'));
     heartbeat();
     const timer = window.setInterval(heartbeat, 5_000);
     return () => window.clearInterval(timer);
@@ -196,6 +200,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
     userId,
     isHost,
     connection,
+    registrationError,
     onlinePlayers,
     requestSnapshot,
     sendMoveIntent,
