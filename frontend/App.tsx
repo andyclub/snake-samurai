@@ -14,9 +14,11 @@ import { settleSentence, settleWord } from './game/settleManager';
 import { updateBotAI } from './game/botAI';
 import { searchCandidates } from './language/trieEngine';
 import { analyzeSentenceBuilding } from './language/sentenceEngine';
-import { callSnakeSamuraiControl, claimSnakeSamuraiStart, persistSnakeSamuraiSnapshot, SNAKE_SAMURAI_ROOM_ID } from './supabase';
+import { callSnakeSamuraiControl, claimSnakeSamuraiStart, persistSnakeSamuraiSnapshot, SNAKE_SAMURAI_ROOM_ID, validateSnakeComposition } from './supabase';
 
 const INITIAL_BOUNDS: ArenaBounds = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
+const ROOM_MODE: ArenaMode = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? 'disaster' : SNAKE_SAMURAI_ROOM_ID === 'snake-theme' ? 'random' : 'free';
+const ROOM_THEME: Theme = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? 'disaster' : SNAKE_SAMURAI_ROOM_ID === 'snake-theme' ? 'travel' : 'free';
 const KATAKANA = ['アオイ', 'カゼ', 'ソラ', 'ナギ', 'リン', 'ユキ', 'ハル', 'レイ', 'ミオ', 'ルイ'];
 const randomKatakana = () => KATAKANA[Math.floor(Math.random() * KATAKANA.length)] + Math.floor(10 + Math.random() * 90);
 
@@ -30,13 +32,14 @@ const INITIAL_BOTS = [
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(getBrowserLanguage());
   const [phase, setPhase] = useState<GamePhase>(GamePhase.LOBBY);
-  const [mode, setMode] = useState<ArenaMode>('free');
-  const [theme, setTheme] = useState<Theme>('free');
+  const [mode, setMode] = useState<ArenaMode>(ROOM_MODE);
+  const [theme, setTheme] = useState<Theme>(ROOM_THEME);
   const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(null);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
   const [manualBots, setManualBots] = useState<Player[]>([]);
+  const [themeAlert, setThemeAlert] = useState('');
 
   // Player State
   const [player, setPlayer] = useState<Player>(() => ({
@@ -128,7 +131,7 @@ const App: React.FC = () => {
       if (cmd === 'on' || cmd === 'restart') {
         if (payload.mode) setMode(payload.mode);
         if (payload.theme) setTheme(payload.theme);
-        setLobbyEndsAt(typeof payload.lobbyEndsAt === 'number' ? payload.lobbyEndsAt : Date.now() + 30_000);
+        setLobbyEndsAt(typeof payload.lobbyEndsAt === 'number' ? payload.lobbyEndsAt : Date.now() + 25_000);
         setManualBots([]);
         phaseRef.current = GamePhase.LOBBY;
         setPhase(GamePhase.LOBBY);
@@ -303,17 +306,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (phase !== GamePhase.LOBBY || !lobbyEndsAt) return;
     const tick = () => {
-      if (Date.now() >= lobbyEndsAt && isHost && startAttemptForDeadlineRef.current !== lobbyEndsAt) {
+      if (Date.now() >= lobbyEndsAt && startAttemptForDeadlineRef.current !== lobbyEndsAt) {
         startAttemptForDeadlineRef.current = lobbyEndsAt;
-        void startMatch().then(started => {
-          if (!started) startAttemptForDeadlineRef.current = null;
+        // Match creation belongs exclusively to the room director. A client
+        // only asks for the canonical snapshot after the shared deadline.
+        void requestSnapshot().then(snapshot => {
+          if (!snapshot) startAttemptForDeadlineRef.current = null;
         });
       }
     };
     tick();
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
-  }, [phase, lobbyEndsAt, startMatch, isHost]);
+  }, [phase, lobbyEndsAt, requestSnapshot]);
 
   // All clients derive both the HUD timer and music stage from the same
   // server-normalized start time, independent of physics host election.
@@ -534,6 +539,27 @@ const App: React.FC = () => {
     const mySnake = snakesRef.current[mySnakeId];
     if (!mySnake) return;
 
+    if (SNAKE_SAMURAI_ROOM_ID === 'snake-theme' && !candidate.themeMatch) {
+      setThemeAlert(`当前主题：${translations[lang]?.[`theme.${themeRef.current}`] || themeRef.current}`);
+      window.setTimeout(() => setThemeAlert(''), 1_500);
+      const failed = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
+      snakesRef.current = failed.updatedSnakes; foodsRef.current = failed.updatedFoods;
+      setSnakes({ ...snakesRef.current }); setFoods({ ...foodsRef.current }); audio.playTailSpill();
+      return;
+    }
+    if (SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' && !candidate.id.startsWith('verified-')) {
+      const surface = mySnake.heldFoods.map(item => item.glyph).join('');
+      void validateSnakeComposition(surface, 'disaster', SNAKE_SAMURAI_ROOM_ID).then(validation => {
+        if (validation.ok && validation.valid) handleSettleWord({ ...candidate, id: `verified-${Date.now()}`, canonical: validation.canonical || surface, themeMatch: true });
+        else {
+          const failed = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
+          snakesRef.current = failed.updatedSnakes; foodsRef.current = failed.updatedFoods;
+          setSnakes({ ...snakesRef.current }); setFoods({ ...foodsRef.current }); audio.playTailSpill();
+        }
+      });
+      return;
+    }
+
     const settled = settleWord(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
     snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
     foodsRef.current = settled.updatedFoods;
@@ -557,13 +583,33 @@ const App: React.FC = () => {
   };
 
   // Abandon / Spill Tail
-  const handleSpillTail = () => {
+  const spillOwnTail = () => {
     const mySnakeId = `snake-${player.id}`;
     const res = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
     snakesRef.current = res.updatedSnakes;
     foodsRef.current = res.updatedFoods;
     setSnakes({ ...snakesRef.current });
     setFoods({ ...foodsRef.current });
+  };
+
+  const handleSpillTail = async () => {
+    const mySnakeId = `snake-${player.id}`;
+    const mySnake = snakesRef.current[mySnakeId];
+    if (!mySnake || mySnake.heldFoods.length < 3) { spillOwnTail(); return; }
+    const local = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? undefined : searchCandidates(mySnake.heldFoods, themeRef.current).candidates[0];
+    if (local) { handleSettleWord(local); return; }
+    const surface = mySnake.heldFoods.map(item => item.glyph).join('');
+    const validation = await validateSnakeComposition(surface, themeRef.current, SNAKE_SAMURAI_ROOM_ID);
+    if (validation.ok && validation.valid) {
+      handleSettleWord({ id: `verified-${Date.now()}`, canonical: validation.canonical || surface, reading: validation.canonical || surface, readingLength: Array.from(surface).length, themeMatch: true });
+      return;
+    }
+    if (validation.reason === 'theme_mismatch') {
+      setThemeAlert(`当前主题：${translations[lang]?.[`theme.${themeRef.current}`] || themeRef.current}`);
+      window.setTimeout(() => setThemeAlert(''), 1_500);
+    }
+    spillOwnTail();
+    audio.playTailSpill();
   };
 
   const arenaState: ArenaState = {
@@ -582,6 +628,10 @@ const App: React.FC = () => {
 
   return (
     <div className="w-screen h-[100dvh] bg-slate-950 text-white font-sans overflow-hidden">
+      {themeAlert && <div role="alert" className="fixed inset-0 z-[200] grid place-items-center overflow-hidden bg-red-950/55 backdrop-blur-sm animate-pulse">
+        <div className="absolute inset-0 opacity-80" style={{background:'linear-gradient(31deg,transparent 46%,#fff 47%,transparent 48%),linear-gradient(147deg,transparent 45%,#fb7185 46%,transparent 47%),linear-gradient(72deg,transparent 52%,#fff 53%,transparent 54%)'}} />
+        <div className="relative rounded-3xl border-4 border-red-200 bg-slate-950/90 px-8 py-6 text-center text-2xl font-black shadow-[0_0_80px_#ef4444]">⚡ 与本场主题不相关<br/><span className="mt-2 block text-base text-red-200">{themeAlert}</span></div>
+      </div>}
       {phase === GamePhase.OFF && (
         <GameOffScreen t={(k) => translations[lang]?.[k] || k} arenaName="聴風・侍蛇" gameUrl="https://h.kazeabc.com" />
       )}

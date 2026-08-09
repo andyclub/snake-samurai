@@ -4,6 +4,7 @@ import { Users, QrCode, Play, ShieldAlert, Globe, Compass, X, HelpCircle } from 
 import { saveLanguagePreference } from '../i18n';
 import SlimeAvatar from './SlimeAvatar';
 import FullscreenCountdown from './FullscreenCountdown';
+import SnakeFaqModal from './SnakeFaqModal';
 
 interface Props {
   player: Player;
@@ -144,13 +145,13 @@ export const LobbyScreen: React.FC<Props> = ({
         </div>
       </header>
 
-      {/* Center Cards: 3 Arena Cards & Direct Start Trigger */}
-      <main className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-6 my-auto z-10 py-3">
+      {/* The selected server-owned playlist is compact; profile controls stay primary. */}
+      <main className="w-full max-w-md mx-auto grid grid-cols-1 gap-3 my-auto z-10 py-3">
         {/* 1. 初级场 (新手自由场) */}
         <button
           type="button"
           onClick={() => handleSelectArena('free', 'free')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
+          className={`touch-manipulation w-full text-left rounded-3xl p-4 border transition-all ${selectedMode !== 'free' ? 'hidden ' : ''}${
             selectedMode === 'free'
               ? 'bg-cyan-950/80 border-cyan-400 shadow-2xl shadow-cyan-500/30 ring-2 ring-cyan-400/50'
               : 'bg-slate-900/90 border-white/15 hover:border-cyan-400/80'
@@ -175,7 +176,7 @@ export const LobbyScreen: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => handleSelectArena('random', 'travel')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
+          className={`touch-manipulation w-full text-left rounded-3xl p-4 border transition-all ${selectedMode !== 'random' ? 'hidden ' : ''}${
             selectedMode === 'random'
               ? 'bg-amber-950/80 border-amber-400 shadow-2xl shadow-amber-500/30 ring-2 ring-amber-400/50'
               : 'bg-slate-900/90 border-white/15 hover:border-amber-400/80'
@@ -200,7 +201,7 @@ export const LobbyScreen: React.FC<Props> = ({
         <button
           type="button"
           onClick={() => handleSelectArena('disaster', 'disaster')}
-          className={`touch-manipulation w-full text-left cursor-pointer rounded-3xl p-4 sm:p-6 border transition-all active:scale-98 ${
+          className={`touch-manipulation w-full text-left rounded-3xl p-4 border transition-all ${selectedMode !== 'disaster' ? 'hidden ' : ''}${
             selectedMode === 'disaster'
               ? 'bg-red-950/80 border-red-500 shadow-2xl shadow-red-500/30 ring-2 ring-red-500/50'
               : 'bg-slate-900/90 border-white/15 hover:border-red-400/80'
@@ -212,7 +213,7 @@ export const LobbyScreen: React.FC<Props> = ({
             </span>
             <Play className="w-5 h-5 text-red-400 fill-current" />
           </div>
-          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🔴 {t('arena.disaster')}</h2>
+          <h2 className="text-lg sm:text-xl font-black text-white mb-1 sm:mb-2">🔴 {t('arena.disaster')} · 高难度</h2>
           <p className="text-xs text-slate-300 leading-relaxed mb-4">
             日本·富山市防灾知识专场。包含地震、津波、避難所、高台避险等专业表达。
           </p>
@@ -268,7 +269,8 @@ export const LobbyScreen: React.FC<Props> = ({
       </footer>
 
       {/* FAQ / Rules Modal */}
-      {showRulesModal && (
+      {showRulesModal && <SnakeFaqModal lang={lang} onClose={() => setShowRulesModal(false)} />}
+      {false && showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
             <button

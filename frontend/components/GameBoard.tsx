@@ -7,6 +7,7 @@ import { analyzeSentenceBuilding } from '../language/sentenceEngine';
 import { audio } from '../audio';
 import { saveLanguagePreference } from '../i18n';
 import FullscreenCountdown from './FullscreenCountdown';
+import SnakeFaqModal from './SnakeFaqModal';
 import { Trophy, Sparkles, Globe, HelpCircle, QrCode, X } from 'lucide-react';
 
 type MutableRef<T> = React.MutableRefObject<T>;
@@ -339,6 +340,13 @@ export const GameBoard: React.FC<Props> = ({
           )}
         </div>
       )}
+      {mySnake && heldFoods.length > 2 && heldFoods.every(item => /^\p{Script=Han}+$/u.test(item.glyph)) && wordSearch.status !== 'WORD_READY' && !sentenceAnalysis.isSentenceReady && (
+        <button type="button" onClick={onSpillTail}
+          className="fixed z-40 -translate-x-1/2 -translate-y-full animate-pulse rounded-2xl border-2 border-amber-100 bg-amber-400 px-5 py-3 font-black text-slate-950 shadow-2xl"
+          style={{ left: `${headScreenX}px`, top: `${headScreenY - 60 * zoom}px` }}>
+          {mode === 'disaster' ? '防灾题库中查找组合' : '点击尝试合成为单词'}
+        </button>
+      )}
 
       {/* Compact Mobile Leaderboard Panel (Displays ONLY color dot, 1st char of name, earnedLength) */}
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-2 sm:left-4 bg-slate-900/80 border border-white/10 backdrop-blur-md rounded-2xl p-1.5 sm:p-3 shadow-2xl z-20 max-w-[110px] sm:max-w-[200px] pointer-events-none">
@@ -370,7 +378,8 @@ export const GameBoard: React.FC<Props> = ({
       </div>
 
       {/* Modals */}
-      {showRulesModal && (
+      {showRulesModal && <SnakeFaqModal lang={lang} onClose={() => setShowRulesModal(false)} />}
+      {false && showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
             <button

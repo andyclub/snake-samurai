@@ -51,7 +51,10 @@ export const loadSnakeSamuraiQuestions = (levels?: string[]) => {
   return request;
 };
 
-export const SNAKE_SAMURAI_ROOM_ID = 'snake-samurai';
+const requestedSnakeRoom = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('arena') : null;
+export const SNAKE_SAMURAI_ROOM_ID = requestedSnakeRoom === 'snake-theme' || requestedSnakeRoom === 'snake-disaster'
+  ? requestedSnakeRoom
+  : 'snake-free';
 
 export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Record<string, unknown>, roomId = SNAKE_SAMURAI_ROOM_ID) => {
   const tryEndpoint = async (fnName: string) => {
@@ -125,5 +128,20 @@ export const registerSnakeSamuraiPlayer = async (player: Record<string, any>, ro
     return { ...data, status: response.status } as { ok: boolean; admitted?: boolean; message?: string; playerCount?: number; audienceCount?: number };
   } catch {
     return { ok: false, admitted: false, status: 0, message: '玩家登记服务不可用' };
+  }
+};
+
+export const validateSnakeComposition = async (text: string, theme: string, playlistId = SNAKE_SAMURAI_ROOM_ID) => {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/snake-language-validate`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, theme, playlistId }),
+      signal: AbortSignal.timeout(6_000),
+    });
+    const data = await response.json().catch(() => ({ ok: false, valid: false, reason: 'validation_unavailable' }));
+    return { ...data, status: response.status } as { ok: boolean; valid: boolean; canonical?: string; reason?: string; source?: string; evidenceId?: string; status: number };
+  } catch {
+    return { ok: false, valid: false, reason: 'validation_unavailable', status: 0 };
   }
 };

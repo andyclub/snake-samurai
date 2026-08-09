@@ -160,6 +160,14 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
     }
   }, [player.name, player.color, connection, userId, roomId, phaseRef]);
 
+  useEffect(() => {
+    if (connection !== 'online' || !userId || phaseRef.current !== GamePhase.LOBBY) return;
+    const heartbeat = () => void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId);
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 5_000);
+    return () => window.clearInterval(timer);
+  }, [connection, userId, roomId, player.name, player.color, player.isSpectator, phaseRef]);
+
   const sendMoveIntent = useCallback((targetX: number, targetY: number) => {
     if (channelRef.current && connection === 'online') {
       channelRef.current.send({

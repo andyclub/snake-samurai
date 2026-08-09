@@ -25,17 +25,12 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
     const canonical = lexeme.canonical;
     const reading = lexeme.reading;
 
-    // Check exact match on full string or prefix/suffix sub-strings
+    // Check an exact match for the complete held sequence.
     // i-adjectives are normally collected as hiragana readings (e.g. たかい),
     // so normalize both sides before testing the exact completion.
     const normalizedReading = Array.from(reading).join('');
     if (surface === canonical || surface === reading || normalized === normalizedReading) {
       exactMatches.push(lexeme);
-    } else {
-      // Also check if the beginning or end of heldFoods forms an exact word (e.g. 「日本」 inside 「日本あ」)
-      if (surface.startsWith(canonical) || surface.startsWith(reading) || normalized.startsWith(normalizedReading) || surface.endsWith(canonical) || surface.endsWith(reading) || normalized.endsWith(normalizedReading)) {
-        exactMatches.push(lexeme);
-      }
     }
 
     // Check prefix match

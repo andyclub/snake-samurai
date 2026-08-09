@@ -440,6 +440,10 @@ export const translations: Record<Language, Record<string, string>> = {
 };
 
 export function getBrowserLanguage(): Language {
+  if (typeof localStorage !== 'undefined') {
+    const stored = localStorage.getItem('snake_samurai_lang');
+    if (stored === 'zh-CN' || stored === 'zh-TW' || stored === 'ja' || stored === 'en' || stored === 'ko' || stored === 'fr' || stored === 'nl') return stored;
+  }
   const nav = typeof navigator !== 'undefined' ? navigator.language : 'zh-CN';
   if (nav.startsWith('ja')) return 'ja';
   if (nav.startsWith('en')) return 'en';
