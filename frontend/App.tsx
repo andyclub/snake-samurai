@@ -160,7 +160,7 @@ const App: React.FC = () => {
       if (cmd === 'on' || cmd === 'restart') {
         if (payload.mode) setMode(payload.mode);
         if (payload.theme) setTheme(payload.theme);
-        setLobbyEndsAt(typeof payload.lobbyEndsAt === 'number' ? payload.lobbyEndsAt : Date.now() + 25_000);
+        setLobbyEndsAt(typeof payload.lobbyEndsAt === 'number' ? payload.lobbyEndsAt : payload.serverState ? null : Date.now() + 25_000);
         setManualBots([]);
         phaseRef.current = GamePhase.LOBBY;
         setPhase(GamePhase.LOBBY);
@@ -299,7 +299,8 @@ const App: React.FC = () => {
         setControlError(control.message || '场次服务连接失败，正在重试');
         return;
       }
-      setControlError('');
+      setControlError(control.directorStatus === 'offline' && control.lobbyEndsAt && Date.parse(control.lobbyEndsAt) <= Date.now()
+        ? '上海主控离线，等待管理员从遥控器接管' : '');
       if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
         const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
         serverClockShiftRef.current = clockShift;

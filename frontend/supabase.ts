@@ -68,19 +68,17 @@ export const callSnakeSamuraiControl = async (method: 'GET' | 'POST', body?: Rec
   };
 
   try {
-    // 1. Try ransen-control endpoint first (active deployment)
-    let response = await tryEndpoint('ransen-control');
-    if (!response.ok && response.status === 404) {
-      response = await tryEndpoint('snake-samurai-control');
-    }
+    // All five playlists share one authoritative state machine. Falling back
+    // to the legacy snake controller would reintroduce split-room behavior.
+    const response = await tryEndpoint('ransen-control');
 
     if (response.ok) {
       const data = await response.json().catch(() => ({ ok: true }));
-      return { ...data, status: response.status, ok: true } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
+      return { ...data, status: response.status, ok: true } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; role?: 'participant' | 'spectator'; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; directorStatus?: 'primary' | 'fallback' | 'offline'; directorLastSeenAt?: string | null; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
     }
 
     const errorData = await response.json().catch(() => ({ ok: false, message: '响应异常' }));
-    return { ...errorData, status: response.status } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
+    return { ...errorData, status: response.status } as { ok: boolean; status: number; message?: string; phase?: GamePhase; persisted?: boolean; code?: string; role?: 'participant' | 'spectator'; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; directorStatus?: 'primary' | 'fallback' | 'offline'; directorLastSeenAt?: string | null; page?: number; pageSize?: number; total?: number; totalPages?: number; matches?: unknown[] };
   } catch (error) {
     console.warn('Snake Samurai control request failed', error);
     return { ok: false, status: 0, message: '场次服务连接失败' };
@@ -125,7 +123,7 @@ export const registerSnakeSamuraiPlayer = async (player: Record<string, any>, ro
       body: JSON.stringify({ command: 'join_lobby', public: true, player, roomId }),
     });
     const data = await response.json().catch(() => ({ ok: true, admitted: true }));
-    return { ...data, status: response.status } as { ok: boolean; admitted?: boolean; message?: string; playerCount?: number; audienceCount?: number };
+    return { ...data, status: response.status } as { ok: boolean; admitted?: boolean; message?: string; role?: 'participant' | 'spectator'; phase?: GamePhase; lobbyEndsAt?: string | null; serverNow?: string; arenaName?: string; snapshot?: Record<string, any>; playerCount?: number; audienceCount?: number };
   } catch {
     return { ok: false, admitted: false, status: 0, message: '玩家登记服务不可用' };
   }

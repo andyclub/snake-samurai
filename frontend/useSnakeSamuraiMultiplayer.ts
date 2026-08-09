@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { ArenaState, GamePhase, MatchHistory, Player, SnakeState } from './types';
 import { callSnakeSamuraiControl, registerSnakeSamuraiPlayer, supabase } from './supabase';
+import { getSharedDeviceId } from './deviceIdentity';
 
 export type Snapshot = ArenaState;
 type Connection = 'connecting' | 'online' | 'error';
@@ -17,21 +18,6 @@ interface Options {
   onMoveIntent: (playerId: string, targetX: number, targetY: number) => void;
   onTailSpill: (victimId: string) => void;
   getSnapshot: () => Snapshot;
-}
-
-// Safe UUID generator that works on HTTP and HTTPS
-function safeUUID(): string {
-  try {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
-    }
-  } catch { /* fall through */ }
-  // Fallback: generate a v4-like UUID
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot }: Options) {
@@ -52,9 +38,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
 
     const connect = async () => {
       try {
-        const savedId = localStorage.getItem('kazeabc_device_id');
-        const id = savedId || safeUUID();
-        if (!savedId) localStorage.setItem('kazeabc_device_id', id);
+        const id = getSharedDeviceId();
         if (cancelled) return;
         setUserId(id);
 
@@ -73,6 +57,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
               startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + shift : null,
               endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + shift : null,
             } as Snapshot, shift);
+            void registerSnakeSamuraiPlayer({ ...player, id, isSpectator: true }, roomId);
           } else if (control.phase === GamePhase.OFF) {
             callbacks.current.onCommand('off', { serverState: true });
           }
@@ -133,7 +118,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
           .subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
               setConnection('online');
-              channel?.track({ player: { ...player, id }, role: 'game', onlineAt: new Date().toISOString() });
+              channel?.track({ player: { ...player, id, isSpectator: phaseRef.current !== GamePhase.LOBBY }, role: 'game', onlineAt: new Date().toISOString() });
               if (phaseRef.current === GamePhase.LOBBY) {
                 const registration = await registerSnakeSamuraiPlayer({ ...player, id }, roomId);
                 setRegistrationError(registration.ok ? '' : registration.message || '无法登记本场玩家');

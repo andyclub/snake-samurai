@@ -165,9 +165,14 @@ export const GameBoard: React.FC<Props> = ({
           }
 
           const currentSnake = getMySnake();
-          const targetZoom = calculateCameraZoom(currentSnake ? currentSnake.totalLength : 3);
-          const targetX = currentSnake ? currentSnake.head.x : 0;
-          const targetY = currentSnake ? currentSnake.head.y : 0;
+          const visibleBounds = boundsRef.current;
+          const spectatorZoom = Math.min(
+            width / Math.max(1, visibleBounds.maxX - visibleBounds.minX),
+            height / Math.max(1, visibleBounds.maxY - visibleBounds.minY),
+          ) * 0.92;
+          const targetZoom = currentSnake ? calculateCameraZoom(currentSnake.totalLength) : spectatorZoom;
+          const targetX = currentSnake ? currentSnake.head.x : (visibleBounds.minX + visibleBounds.maxX) / 2;
+          const targetY = currentSnake ? currentSnake.head.y : (visibleBounds.minY + visibleBounds.maxY) / 2;
           
           // Smooth camera lerp (0.12 = smooth follow speed)
           const lerp = 0.12;
@@ -241,8 +246,9 @@ export const GameBoard: React.FC<Props> = ({
           }
         }}
         onTouchMove={handleTouchMove}
-        className="w-full h-full cursor-crosshair touch-none"
+        className={`w-full h-full touch-none ${mySnake ? 'cursor-crosshair' : 'cursor-default'}`}
       />
+      {!mySnake && <div className="pointer-events-none absolute left-1/2 top-[max(5rem,calc(env(safe-area-inset-top)+4rem))] z-30 -translate-x-1/2 rounded-full border border-violet-300/40 bg-violet-500/20 px-4 py-2 text-sm font-black text-violet-100 backdrop-blur-md">👁 全地图旁观 · 等待下一场参赛</div>}
       {tailBurst && <div key={tailBurst.key} className="pointer-events-none fixed z-[80]" style={{ left: tailBurst.x, top: tailBurst.y }}>
         {Array.from({ length: 12 }, (_, index) => {
           const angle = (Math.PI * 2 * index) / 12;
