@@ -27,7 +27,7 @@ const getCommitCount = () => {
   // Vercel intentionally checks repositories out without fetch credentials, so an
   // unshallow fetch is unavailable there. Keep production deployable while making
   // the fallback explicit and repository-specific instead of silently guessing 100.
-  if (process.env.VERCEL === '1') return 192;
+  if (process.env.VERCEL === '1') return 193;
   throw new Error('Unable to determine the complete Git commit count for this build');
 };
 

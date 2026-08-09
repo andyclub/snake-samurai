@@ -6,6 +6,42 @@ export function calculateReadingLength(reading: string): number {
   return Array.from(reading).length;
 }
 
+const toHiragana = (value: string) => Array.from(value.normalize('NFKC')).map(char => {
+  const code = char.charCodeAt(0);
+  return code >= 0x30a1 && code <= 0x30f6 ? String.fromCharCode(code - 0x60) : char;
+}).join('');
+
+const isKanji = (char: string) => /[\u3400-\u4dbf\u4e00-\u9fff々]/u.test(char);
+
+/** Match any dictionary-grounded mixture of kanji spelling and kana reading. */
+export function matchesLexemeSpelling(value: string, lexeme: Pick<Lexeme, 'canonical' | 'reading'>): boolean {
+  const input = toHiragana(value);
+  const canonical = Array.from(toHiragana(lexeme.canonical));
+  const reading = Array.from(toHiragana(lexeme.reading));
+
+  const visit = (canonicalIndex: number, readingIndex: number, inputIndex: number): boolean => {
+    if (canonicalIndex === canonical.length) return readingIndex === reading.length && inputIndex === input.length;
+    const current = canonical[canonicalIndex];
+    if (!isKanji(current)) {
+      return reading[readingIndex] === current && input[inputIndex] === current
+        && visit(canonicalIndex + 1, readingIndex + 1, inputIndex + 1);
+    }
+
+    const remainingMinimum = canonical.slice(canonicalIndex + 1).length;
+    const maxReadingLength = reading.length - readingIndex - remainingMinimum;
+    for (let length = 1; length <= maxReadingLength; length++) {
+      const readingForm = reading.slice(readingIndex, readingIndex + length).join('');
+      if (input.startsWith(current, inputIndex)
+        && visit(canonicalIndex + 1, readingIndex + length, inputIndex + current.length)) return true;
+      if (input.startsWith(readingForm, inputIndex)
+        && visit(canonicalIndex + 1, readingIndex + length, inputIndex + readingForm.length)) return true;
+    }
+    return false;
+  };
+
+  return visit(0, 0, 0);
+}
+
 export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
   status: 'INVALID' | 'PREFIX' | 'WORD_READY';
   candidates: CandidateWord[];
@@ -28,13 +64,13 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
     // Check an exact match for the complete held sequence.
     // i-adjectives are normally collected as hiragana readings (e.g. たかい),
     // so normalize both sides before testing the exact completion.
-    const normalizedReading = Array.from(reading).join('');
-    if (surface === canonical || surface === reading || normalized === normalizedReading) {
+    const normalizedReading = toHiragana(reading);
+    if (matchesLexemeSpelling(surface, lexeme) || matchesLexemeSpelling(normalized, lexeme)) {
       exactMatches.push(lexeme);
     }
 
     // Check prefix match
-    if (canonical.startsWith(surface) || reading.startsWith(surface) || normalizedReading.startsWith(normalized)) {
+    if (toHiragana(canonical).startsWith(toHiragana(surface)) || normalizedReading.startsWith(toHiragana(surface)) || normalizedReading.startsWith(toHiragana(normalized))) {
       prefixCount++;
     }
   }

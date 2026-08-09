@@ -620,7 +620,7 @@ const App: React.FC = () => {
     if (sentence) { handleSettleSentence(sentence); return; }
     const local = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? undefined : searchCandidates(mySnake.heldFoods, themeRef.current).candidates[0];
     if (local) { handleSettleWord(local); return; }
-    if (mySnake.heldFoods.length < 3) { spillOwnTail(); audio.playTailSpill(); return; }
+    if (mySnake.heldFoods.length < 2) { spillOwnTail(); audio.playTailSpill(); return; }
     const surface = mySnake.heldFoods.map(item => item.glyph).join('');
     const validation = await validateSnakeComposition(surface, themeRef.current, SNAKE_SAMURAI_ROOM_ID);
     if (validation.ok && validation.valid) {
