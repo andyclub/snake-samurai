@@ -4,19 +4,24 @@ import react from '@vitejs/plugin-react';
 import { execFileSync } from 'node:child_process';
 
 const getCommitCount = () => {
-  const injectedCount = Number(process.env.VITE_REPO_COMMIT_COUNT);
-  if (Number.isInteger(injectedCount) && injectedCount > 0) return injectedCount;
   try {
     const repoRoot = path.resolve(__dirname, '..');
+    const isShallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }).trim() === 'true';
+    if (isShallow) {
+      execFileSync('git', ['fetch', '--unshallow', 'origin'], { cwd: repoRoot, stdio: 'ignore' });
+    }
     const count = Number(execFileSync('git', ['rev-list', '--count', 'HEAD'], {
       cwd: repoRoot,
       encoding: 'utf8',
     }).trim());
     if (Number.isInteger(count) && count >= 1) return count;
   } catch (error) {
-    // Graceful fallback for environments like Vercel build where .git is excluded
+    // A guessed version number would be misleading, so fail the build instead.
   }
-  return 100;
+  throw new Error('Unable to determine the complete Git commit count for this build');
 };
 
 const getBuildDate = () => {
@@ -27,7 +32,7 @@ const getBuildDate = () => {
     day: 'numeric',
   }).formatToParts(new Date());
   const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || '';
-  return `${value('year')}-${value('month')}-${value('day')}`;
+  return `${value('year')}.${value('month')}-${value('day')}`;
 };
 
 export default defineConfig(({ mode }) => {

@@ -1,6 +1,16 @@
 import { ArenaBounds, FoodState, SnakeState } from '../types';
 import { generateSingleFood } from './foodGenerator';
 
+const spilledPosition = (origin: { x: number; y: number }, index: number, total: number, bounds: ArenaBounds) => {
+  const angle = (Math.PI * 2 * index) / Math.max(4, total) - Math.PI / 4;
+  const distance = 90 + (index % 3) * 38;
+  const margin = 28;
+  return {
+    x: Math.max(bounds.minX + margin, Math.min(bounds.maxX - margin, origin.x + Math.cos(angle) * distance)),
+    y: Math.max(bounds.minY + margin, Math.min(bounds.maxY - margin, origin.y + Math.sin(angle) * distance)),
+  };
+};
+
 export interface CollisionResult {
   updatedSnakes: Record<string, SnakeState>;
   updatedFoods: Record<string, FoodState>;
@@ -81,18 +91,16 @@ export function checkAndResolveCollisions(
         // Scatter spilled foods into current map bounds
         spilledItems.forEach((item, index) => {
           const newFoodId = `spill-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`;
-          const margin = 50;
-          const rx = Math.floor(bounds.minX + margin + Math.random() * (bounds.maxX - bounds.minX - margin * 2));
-          const ry = Math.floor(bounds.minY + margin + Math.random() * (bounds.maxY - bounds.minY - margin * 2));
+          const position = spilledPosition(victim.head, index, spilledItems.length, bounds);
 
           nextFoods[newFoodId] = {
             id: newFoodId,
             displayedGlyph: item.glyph,
             normalizedGlyph: item.normalizedGlyph,
-            type: 'hiragana',
+            type: /^\p{Script=Han}+$/u.test(item.glyph) ? 'kanji' : 'hiragana',
             color: item.color,
-            x: rx,
-            y: ry,
+            x: position.x,
+            y: position.y,
             collisionRadius: 18,
             state: 'ground',
             heldByPlayerId: null
@@ -136,18 +144,16 @@ export function triggerSelfTailSpill(
 
   spilledItems.forEach((item, index) => {
     const newFoodId = `self-spill-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`;
-    const margin = 50;
-    const rx = Math.floor(bounds.minX + margin + Math.random() * (bounds.maxX - bounds.minX - margin * 2));
-    const ry = Math.floor(bounds.minY + margin + Math.random() * (bounds.maxY - bounds.minY - margin * 2));
+    const position = spilledPosition(snake.head, index, spilledItems.length, bounds);
 
     nextFoods[newFoodId] = {
       id: newFoodId,
       displayedGlyph: item.glyph,
       normalizedGlyph: item.normalizedGlyph,
-      type: 'hiragana',
+      type: /^\p{Script=Han}+$/u.test(item.glyph) ? 'kanji' : 'hiragana',
       color: item.color,
-      x: rx,
-      y: ry,
+      x: position.x,
+      y: position.y,
       collisionRadius: 18,
       state: 'ground',
       heldByPlayerId: null

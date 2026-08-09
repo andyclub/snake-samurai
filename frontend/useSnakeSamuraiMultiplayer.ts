@@ -15,6 +15,7 @@ interface Options {
   onCommand: (command: string, payload: Record<string, any>) => CommandResult | Promise<CommandResult>;
   onSnapshot: (snapshot: Snapshot, clockShift?: number) => void;
   onMoveIntent: (playerId: string, targetX: number, targetY: number) => void;
+  onTailSpill: (victimId: string) => void;
   getSnapshot: () => Snapshot;
 }
 
@@ -33,7 +34,7 @@ function safeUUID(): string {
   });
 }
 
-export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand, onSnapshot, onMoveIntent, getSnapshot }: Options) {
+export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot }: Options) {
   const [userId, setUserId] = useState<string>();
   const [isHost, setIsHost] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
@@ -41,8 +42,8 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const hostRef = useRef(false);
-  const callbacks = useRef({ onCommand, onSnapshot, onMoveIntent, getSnapshot });
-  callbacks.current = { onCommand, onSnapshot, onMoveIntent, getSnapshot };
+  const callbacks = useRef({ onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot });
+  callbacks.current = { onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot };
 
   // Connect ONCE on mount. Do NOT re-run when player.name/color changes.
   useEffect(() => {
@@ -96,6 +97,9 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
                 endsAt: typeof payload.snapshot.endsAt === 'number' ? payload.snapshot.endsAt + shift : null,
               }, shift);
             }
+          })
+          .on('broadcast', { event: 'tail_spill' }, ({ payload }) => {
+            if (typeof payload?.victimId === 'string') callbacks.current.onTailSpill(payload.victimId);
           })
           .on('broadcast', { event: 'command' }, async ({ payload }) => {
             const result = await callbacks.current.onCommand(String(payload.command), payload);
@@ -192,6 +196,13 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
     }
   }, [connection]);
 
+  const broadcastTailSpill = useCallback((victimId: string) => {
+    callbacks.current.onTailSpill(victimId);
+    if (channelRef.current && connection === 'online') {
+      channelRef.current.send({ type: 'broadcast', event: 'tail_spill', payload: { victimId, at: Date.now() } });
+    }
+  }, [connection]);
+
   const requestSnapshot = useCallback(() => {
     return channelRef.current?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} });
   }, []);
@@ -204,6 +215,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
     onlinePlayers,
     requestSnapshot,
     sendMoveIntent,
-    broadcastSnapshot
+    broadcastSnapshot,
+    broadcastTailSpill,
   };
 }

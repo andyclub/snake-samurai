@@ -41,6 +41,7 @@ const App: React.FC = () => {
   const [manualBots, setManualBots] = useState<Player[]>([]);
   const [themeAlert, setThemeAlert] = useState('');
   const [controlError, setControlError] = useState('');
+  const [tailSpillEffect, setTailSpillEffect] = useState<{ victimId: string; at: number } | null>(null);
 
   // Player State
   const [player, setPlayer] = useState<Player>(() => ({
@@ -151,7 +152,7 @@ const App: React.FC = () => {
   }, []);
 
   // Multiplayer Hook
-  const { userId, isHost, connection, registrationError, onlinePlayers, sendMoveIntent, broadcastSnapshot, requestSnapshot } = useSnakeSamuraiMultiplayer({
+  const { userId, isHost, connection, registrationError, onlinePlayers, sendMoveIntent, broadcastSnapshot, broadcastTailSpill, requestSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: SNAKE_SAMURAI_ROOM_ID,
     player,
     phaseRef,
@@ -183,6 +184,7 @@ const App: React.FC = () => {
         snakesRef.current[sId] = { ...s, target: { x: targetX, y: targetY } };
       }
     },
+    onTailSpill: (victimId) => setTailSpillEffect({ victimId, at: Date.now() }),
     getSnapshot: () => ({
       id: SNAKE_SAMURAI_ROOM_ID,
       mode,
@@ -519,6 +521,7 @@ const App: React.FC = () => {
       const colRes = checkAndResolveCollisions(updatedSnakes, updatedFoods, currentBounds);
       if (colRes.events.spills.length > 0) {
         audio.playTailSpill();
+        colRes.events.spills.forEach(event => broadcastTailSpill(event.victimId));
       }
       if (colRes.events.foodPickups.length > 0) {
         audio.playPickup();
@@ -533,7 +536,7 @@ const App: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, player, createPlayerSnake, isHost, mode, broadcastSnapshot]);
+  }, [phase, player, createPlayerSnake, isHost, mode, broadcastSnapshot, broadcastTailSpill]);
 
   // Note: GameBoard reads directly from snakesRef/foodsRef/boundsRef for 60fps rendering
   // and manages its own 150ms HUD sync internally.
@@ -606,14 +609,18 @@ const App: React.FC = () => {
     foodsRef.current = res.updatedFoods;
     setSnakes({ ...snakesRef.current });
     setFoods({ ...foodsRef.current });
+    broadcastTailSpill(mySnakeId);
   };
 
-  const handleSpillTail = async () => {
+  const handleComposeHeldFoods = async () => {
     const mySnakeId = `snake-${player.id}`;
     const mySnake = snakesRef.current[mySnakeId];
-    if (!mySnake || mySnake.heldFoods.length < 3) { spillOwnTail(); return; }
+    if (!mySnake || mySnake.heldFoods.length === 0) return;
+    const sentence = analyzeSentenceBuilding(mySnake.heldFoods, themeRef.current).candidates[0];
+    if (sentence) { handleSettleSentence(sentence); return; }
     const local = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? undefined : searchCandidates(mySnake.heldFoods, themeRef.current).candidates[0];
     if (local) { handleSettleWord(local); return; }
+    if (mySnake.heldFoods.length < 3) { spillOwnTail(); audio.playTailSpill(); return; }
     const surface = mySnake.heldFoods.map(item => item.glyph).join('');
     const validation = await validateSnakeComposition(surface, themeRef.current, SNAKE_SAMURAI_ROOM_ID);
     if (validation.ok && validation.valid) {
@@ -680,7 +687,9 @@ const App: React.FC = () => {
           onPointerTarget={handlePointerTarget}
           onSettleWord={handleSettleWord}
           onSettleSentence={handleSettleSentence}
-          onSpillTail={handleSpillTail}
+          onComposeHeldFoods={handleComposeHeldFoods}
+          onSpillTail={() => { spillOwnTail(); audio.playTailSpill(); }}
+          tailSpillEffect={tailSpillEffect}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}

@@ -25,7 +25,9 @@ interface Props {
   onPointerTarget: (x: number, y: number) => void;
   onSettleWord: (candidate: CandidateWord) => void;
   onSettleSentence: (candidate: CandidateSentence) => void;
+  onComposeHeldFoods: () => void;
   onSpillTail: () => void;
+  tailSpillEffect: { victimId: string; at: number } | null;
   t: (key: string) => string;
 }
 
@@ -45,7 +47,9 @@ export const GameBoard: React.FC<Props> = ({
   onPointerTarget,
   onSettleWord,
   onSettleSentence,
+  onComposeHeldFoods,
   onSpillTail,
+  tailSpillEffect,
   t
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -53,6 +57,7 @@ export const GameBoard: React.FC<Props> = ({
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [tailBurst, setTailBurst] = useState<{ x: number; y: number; key: number } | null>(null);
   const isInteractingRef = useRef(false);
   const clickEffectRef = useRef(clickEffect);
   clickEffectRef.current = clickEffect;
@@ -90,6 +95,16 @@ export const GameBoard: React.FC<Props> = ({
     const worldY = (touchY - canvas.height / 2) / cameraZoom + cameraY;
 
     if (isInitialTap) {
+      const heldFoodHit = currentMySnake.heldFoods.some(item => {
+        const itemX = item.x ?? currentMySnake.head.x + currentMySnake.direction.x * 24;
+        const itemY = item.y ?? currentMySnake.head.y + currentMySnake.direction.y * 24;
+        return Math.hypot(worldX - itemX, worldY - itemY) < 28;
+      });
+      if (heldFoodHit) {
+        onComposeHeldFoods();
+        setClickEffect({ x: worldX, y: worldY, time: Date.now() });
+        return;
+      }
       const tailPt = currentMySnake.bodyPath[currentMySnake.bodyPath.length - 1];
       if (tailPt && Math.hypot(worldX - tailPt.x, worldY - tailPt.y) < 40 && currentMySnake.heldFoods.length > 0) {
         onSpillTail();
@@ -193,6 +208,15 @@ export const GameBoard: React.FC<Props> = ({
   const headScreenX = mySnake ? (mySnake.head.x - cameraX) * zoom + window.innerWidth / 2 : window.innerWidth / 2;
   const headScreenY = mySnake ? (mySnake.head.y - cameraY) * zoom + window.innerHeight / 2 : window.innerHeight / 2;
 
+  useEffect(() => {
+    if (!tailSpillEffect || !mySnake || tailSpillEffect.victimId !== mySnake.id) return;
+    setTailBurst({ x: headScreenX, y: headScreenY, key: tailSpillEffect.at });
+    const timer = window.setTimeout(() => setTailBurst(null), 900);
+    return () => window.clearTimeout(timer);
+  // The event timestamp is the trigger; capture the snake position at that instant.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tailSpillEffect?.at]);
+
   // Leaderboard shows ONLY earnedLength (excluding base 3 length)
   const leaderboard = Object.values(hudSnakes)
     .filter(s => s.connected)
@@ -219,6 +243,24 @@ export const GameBoard: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         className="w-full h-full cursor-crosshair touch-none"
       />
+      {tailBurst && <div key={tailBurst.key} className="pointer-events-none fixed z-[80]" style={{ left: tailBurst.x, top: tailBurst.y }}>
+        {Array.from({ length: 12 }, (_, index) => {
+          const angle = (Math.PI * 2 * index) / 12;
+          const distance = 70 + (index % 3) * 22;
+          return <i key={index} className="tail-burst-particle" style={{
+            '--burst-x': `${Math.cos(angle) * distance}px`,
+            '--burst-y': `${Math.sin(angle) * distance}px`,
+            backgroundColor: ['#38bdf8','#facc15','#fb7185','#a78bfa'][index % 4],
+          } as React.CSSProperties} />;
+        })}
+        <b className="tail-burst-core">踩尾！</b>
+      </div>}
+      <style>{`
+        .tail-burst-particle{position:absolute;left:-7px;top:-7px;width:14px;height:14px;border:2px solid white;border-radius:999px;box-shadow:0 0 14px currentColor;animation:tail-burst-fly .85s cubic-bezier(.12,.65,.25,1) forwards}
+        .tail-burst-core{position:absolute;left:0;top:0;white-space:nowrap;transform:translate(-50%,-50%);color:#fff;font-size:1.1rem;text-shadow:0 0 16px #f43f5e;animation:tail-burst-core .85s ease-out forwards}
+        @keyframes tail-burst-fly{0%{opacity:1;transform:translate(0,0) scale(.45)}70%{opacity:1}100%{opacity:0;transform:translate(var(--burst-x),var(--burst-y)) scale(1.25) rotate(240deg)}}
+        @keyframes tail-burst-core{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}30%{opacity:1;transform:translate(-50%,-75%) scale(1.2)}100%{opacity:0;transform:translate(-50%,-130%) scale(.9)}}
+      `}</style>
 
       {/* Top HUD Controls Bar with Mobile Safe Area Support */}
       <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 right-3 sm:left-4 sm:right-4 flex items-center justify-between pointer-events-none z-20 gap-2">
@@ -341,7 +383,7 @@ export const GameBoard: React.FC<Props> = ({
         </div>
       )}
       {mySnake && heldFoods.length > 2 && heldFoods.every(item => /^\p{Script=Han}+$/u.test(item.glyph)) && wordSearch.status !== 'WORD_READY' && !sentenceAnalysis.isSentenceReady && (
-        <button type="button" onClick={onSpillTail}
+        <button type="button" onClick={onComposeHeldFoods}
           className="fixed z-40 -translate-x-1/2 -translate-y-full animate-pulse rounded-2xl border-2 border-amber-100 bg-amber-400 px-5 py-3 font-black text-slate-950 shadow-2xl"
           style={{ left: `${headScreenX}px`, top: `${headScreenY - 60 * zoom}px` }}>
           {mode === 'disaster' ? '防灾题库中查找组合' : '点击尝试合成为单词'}

@@ -46,15 +46,17 @@ const SnakeDemoCanvas: React.FC<{ kind: DemoKind; color: string; name: string }>
       const snakes: Record<string, SnakeState> = {};
       const foods: Record<string, FoodState> = {};
       if (kind === 'tail') {
-        const attackerX = -125 + Math.min(progress / .56, 1) * 145;
+        const attackerX = -145 + Math.min(progress / .56, 1) * 116;
         const attacker = snake('demo-player', name, color, attackerX, 28);
-        const target = snake('demo-rival', 'ライバル', '#ec4899', 112, 28, -1);
-        attacker.heldFoods = progress < .58
-          ? ['日', '本', '語'].map((glyph, index) => food(glyph, index, attackerX + 30 + index * 25, 28))
+        const target = snake('demo-rival', '前方の蛇', '#ec4899', 95, 28, 1);
+        target.heldFoods = progress < .58
+          ? ['防', '災', '安', '全'].map((glyph, index) => food(glyph, index, 125 + index * 23, 28))
           : [];
-        if (progress >= .58) ['日', '本', '語'].forEach((glyph, index) => {
+        if (progress >= .58) ['防', '災', '安', '全'].forEach((glyph, index) => {
           const id = `spill-${index}`;
-          foods[id] = { id, displayedGlyph: glyph, normalizedGlyph: glyph, type: 'kanji', color: ['#38bdf8','#f59e0b','#a78bfa'][index], x: 10 + index * 34, y: -18 - index * 18, collisionRadius: 18, state: 'ground', heldByPlayerId: null };
+          const angle = -Math.PI / 4 + index * Math.PI / 2;
+          const travel = Math.min(1, (progress - .58) / .2) * 86;
+          foods[id] = { id, displayedGlyph: glyph, normalizedGlyph: glyph, type: 'kanji', color: ['#38bdf8','#f59e0b','#a78bfa','#34d399'][index], x: 95 + Math.cos(angle) * travel, y: 28 + Math.sin(angle) * travel, collisionRadius: 18, state: 'ground', heldByPlayerId: null };
         });
         snakes[attacker.id] = attacker; snakes[target.id] = target;
       } else {
