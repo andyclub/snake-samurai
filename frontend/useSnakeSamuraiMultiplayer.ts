@@ -3,6 +3,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 import { ArenaState, GamePhase, MatchHistory, Player, SnakeState } from './types';
 import { callSnakeSamuraiControl, registerSnakeSamuraiPlayer, supabase } from './supabase';
 import { getSharedDeviceId } from './deviceIdentity';
+import { SnapshotTransport } from './snapshotTransport';
 
 export type Snapshot = ArenaState;
 type Connection = 'connecting' | 'online' | 'error';
@@ -31,6 +32,8 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const hostRef = useRef(false);
+  const transportRef = useRef<SnapshotTransport | null>(null);
+  if (!transportRef.current) transportRef.current = new SnapshotTransport(crypto.randomUUID());
   const registrationActive = phase === GamePhase.LOBBY && Boolean(lobbyEndsAt);
   const callbacks = useRef({ onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot });
   callbacks.current = { onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot };
@@ -45,8 +48,10 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
         const id = getSharedDeviceId();
         if (cancelled) return;
         setUserId(id);
+        transportRef.current!.setPublisher(id);
 
         const control = await callSnakeSamuraiControl('GET', undefined, roomId);
+        if (cancelled) return;
         if (!cancelled && control.ok) {
           const shift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
           if (control.phase === GamePhase.LOBBY) {
@@ -78,7 +83,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
             }
           })
           .on('broadcast', { event: 'snapshot' }, ({ payload }) => {
-            if (payload?.snapshot) {
+            if (payload?.snapshot && transportRef.current!.accept(payload)) {
               const shift = typeof payload.sentAt === 'number' ? Date.now() - payload.sentAt : 0;
               callbacks.current.onSnapshot({
                 ...payload.snapshot,
@@ -96,7 +101,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
           })
           .on('broadcast', { event: 'request_snapshot' }, async () => {
             if (hostRef.current) {
-              await channel?.send({ type: 'broadcast', event: 'snapshot', payload: { snapshot: callbacks.current.getSnapshot() } });
+              await channel?.send({ type: 'broadcast', event: 'snapshot', payload: transportRef.current!.stamp({ snapshot: callbacks.current.getSnapshot(), sentAt: Date.now() }) });
             }
           })
           .on('presence', { event: 'sync' }, () => {
@@ -104,11 +109,13 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
             setRecipientCount(Object.values(state).reduce((count, metas) => count + metas.length, 0) - (state[id]?.length ? 1 : 0));
             const active: Player[] = [];
             const gameKeys: string[] = [];
+            const sessionsByKey = new Map<string, string[]>();
             Object.entries(state).forEach(([key, presences]: [string, any]) => {
               presences.forEach((p: any) => {
                 if (p.role === 'game' && p.player) {
                   active.push(p.player);
                   gameKeys.push(key);
+                  if (p.snapshotSession) sessionsByKey.set(key, [...(sessionsByKey.get(key) || []), p.snapshotSession]);
                 }
               });
             });
@@ -116,15 +123,17 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
 
             // Host election: lowest key is host
             const keys = [...new Set(gameKeys)].sort();
+            transportRef.current!.setHost(keys[0] || '', sessionsByKey.get(keys[0]) || []);
             const amHost = keys[0] === id;
             setIsHost(amHost);
             hostRef.current = amHost;
           })
           .subscribe(async (status) => {
+            if (cancelled) return;
             if (status === 'SUBSCRIBED') {
               setConnection('online');
-              channel?.track({ player: { ...player, id, isSpectator: phaseRef.current !== GamePhase.LOBBY }, role: 'game', onlineAt: new Date().toISOString() });
-              window.setTimeout(() => channel?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} }), 250);
+              channel?.track({ player: { ...player, id, isSpectator: Boolean(player.isSpectator) || (phaseRef.current !== GamePhase.LOBBY && !Object.values((callbacks.current.getSnapshot().snakes || {}) as Record<string, SnakeState>).some(snake => snake.playerId === id)) }, role: 'game', snapshotSession: transportRef.current!.sessionId, onlineAt: new Date().toISOString() });
+              window.setTimeout(() => { if (!cancelled) void channel?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} }); }, 250);
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
               setConnection('error');
             }
@@ -141,6 +150,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
 
     return () => {
       cancelled = true;
+      if (channelRef.current === channel) channelRef.current = null;
       if (channel) supabase.removeChannel(channel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,9 +159,9 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
   // Update presence when player name/color changes (without reconnecting)
   useEffect(() => {
     if (channelRef.current && connection === 'online' && userId) {
-      channelRef.current.track({ player: { ...player, id: userId }, role: 'game', onlineAt: new Date().toISOString() });
+      channelRef.current.track({ player: { ...player, id: userId, isSpectator: Boolean(player.isSpectator) || (phase !== GamePhase.LOBBY && !Object.values((callbacks.current.getSnapshot().snakes || {}) as Record<string, SnakeState>).some(snake => snake.playerId === userId)) }, role: 'game', snapshotSession: transportRef.current!.sessionId, onlineAt: new Date().toISOString() });
     }
-  }, [player.name, player.color, connection, userId, roomId, phaseRef]);
+  }, [phase, player.name, player.color, player.isSpectator, connection, userId, roomId, phaseRef]);
 
   useEffect(() => {
     if (connection !== 'online' || !userId || !registrationActive) return;
@@ -187,7 +197,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lo
       channelRef.current.send({
         type: 'broadcast',
         event: 'snapshot',
-        payload: { snapshot, sentAt: Date.now() }
+        payload: transportRef.current!.stamp({ snapshot, sentAt: Date.now() })
       });
     }
   }, [connection]);

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { stripTypeScriptTypes } from 'node:module';
 import { execFileSync } from 'node:child_process';
 const snake = readFileSync(new URL('../package.json', import.meta.url), 'utf8').includes('snake-samurai');
 const source = file => readFileSync(new URL(`../frontend/${file}`, import.meta.url), 'utf8');
@@ -14,7 +15,7 @@ function effect(text, marker, globals) {
   const start = text.lastIndexOf('useEffect(() => {', markerAt);
   const end = text.indexOf('\n  }, [', markerAt);
   const body = text.slice(start + 'useEffect(() => {'.length, end);
-  const js = `(() => {${body.replaceAll(': Encounter', '').replaceAll(' as ArenaState', '')}\n})();`;
+  const js = stripTypeScriptTypes(`(() => {${body}\n})();`);
   return vm.runInNewContext(js, globals);
 }
 function fixture(phase = 'LOBBY', deadline = 1000) {
@@ -77,4 +78,16 @@ test('baseline comparison: repeated registration outside lobby',async()=>{
  const old=execFileSync('git',['show',`${base}:${file}`],{cwd:new URL('..',import.meta.url),encoding:'utf8'});
  const f=fixture(snake?'LOBBY':'PLAYING');effect(old,snake?'const heartbeat =':'const register =',f.globals);await flush();f.globals.phaseRef.current='PLAYING';const timer=[...f.intervals.keys()][0];for(let i=0;i<720;i++){timer();await flush();}assert.equal(f.calls(),721);
  const next=fixture('PLAYING');effect(hook,snake?'const heartbeat = async':'const register = async',next.globals);await flush();assert.equal(next.calls(),0);
+});
+test('cancelled initial GET does not leak a channel or delayed sync',async()=>{
+ const f=fixture('OFF');let resolveGet;let channels=0;
+ Object.assign(f.globals,{setUserId:()=>{},getSharedDeviceId:()=> 'device',transportRef:{current:{setPublisher:()=>{}}},callSnakeSamuraiControl:()=>new Promise(resolve=>{resolveGet=resolve;}),channelRef:{current:null},supabase:{channel:()=>{channels++;throw Error('cancelled mount must not connect');},removeChannel:()=>{}},setConnection:()=>{}});
+ const cleanup=effect(hook,'const connect = async',f.globals);cleanup();resolveGet({ok:true,phase:'OFF'});await flush();assert.equal(channels,0);
+});
+test('spectator presence survives updates; participating reconnect retains membership',()=>{
+ for(const [snakes,expected] of [[{},true],[{self:{playerId:'a'}},false]]){
+  const f=fixture('PLAYING');let tracked;
+  Object.assign(f.globals,{channelRef:{current:{track:packet=>{tracked=packet;}}},transportRef:{current:{sessionId:'session'}},callbacks:{current:{getSnapshot:()=>({snakes})}}});
+  effect(hook,'channelRef.current.track({ player:',f.globals);assert.equal(tracked.player.isSpectator,expected);
+ }
 });
