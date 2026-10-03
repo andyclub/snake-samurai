@@ -152,7 +152,9 @@ const App: React.FC = () => {
   }, []);
 
   // Multiplayer Hook
-  const { userId, isHost, connection, registrationError, onlinePlayers, sendMoveIntent, broadcastSnapshot, broadcastTailSpill, requestSnapshot } = useSnakeSamuraiMultiplayer({
+  const { userId, isHost, recipientCount, connection, registrationError, onlinePlayers, sendMoveIntent, broadcastSnapshot, broadcastTailSpill, requestSnapshot } = useSnakeSamuraiMultiplayer({
+    phase,
+    lobbyEndsAt,
     roomId: SNAKE_SAMURAI_ROOM_ID,
     player,
     phaseRef,
@@ -292,33 +294,45 @@ const App: React.FC = () => {
   useEffect(() => {
     if (phase !== GamePhase.LOBBY) return;
     let cancelled = false;
+    let inFlight = false;
     const syncLobby = async () => {
-      const control = await callSnakeSamuraiControl('GET');
-      if (cancelled) return;
-      if (!control.ok) {
-        setControlError(control.message || '场次服务连接失败，正在重试');
-        return;
-      }
-      setControlError(control.directorStatus === 'offline' && control.lobbyEndsAt && Date.parse(control.lobbyEndsAt) <= Date.now()
-        ? '上海主控离线，等待管理员从遥控器接管' : '');
-      if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
-        const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
-        serverClockShiftRef.current = clockShift;
-        const deadline = Date.parse(control.lobbyEndsAt) + clockShift;
-        if (Number.isFinite(deadline)) setLobbyEndsAt(deadline);
-      } else if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
-        const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
-        applyCanonicalSnapshot({
-          ...control.snapshot,
-          phase: control.phase,
-          startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + clockShift : null,
-          endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + clockShift : null,
-        } as ArenaState, clockShift);
-      }
+      if (cancelled || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const control = await callSnakeSamuraiControl('GET');
+        if (cancelled) return;
+        if (!control.ok) {
+          setControlError(control.message || '场次服务连接失败，正在重试');
+          return;
+        }
+        setControlError(control.directorStatus === 'offline' && control.lobbyEndsAt && Date.parse(control.lobbyEndsAt) <= Date.now()
+          ? '上海主控离线，等待管理员从遥控器接管' : '');
+        if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
+          const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
+          serverClockShiftRef.current = clockShift;
+          const deadline = Date.parse(control.lobbyEndsAt) + clockShift;
+          if (Number.isFinite(deadline)) setLobbyEndsAt(deadline);
+        } else if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
+          const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
+          applyCanonicalSnapshot({
+            ...control.snapshot,
+            phase: control.phase,
+            startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + clockShift : null,
+            endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + clockShift : null,
+          } as ArenaState, clockShift);
+        }
+      } catch (error) { console.error('Lobby recovery failed', error); }
+      finally { inFlight = false; }
     };
     void syncLobby();
-    const interval = window.setInterval(syncLobby, lobbyEndsAt && lobbyEndsAt - Date.now() < 8_000 ? 750 : 2_000);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    const interval = window.setInterval(syncLobby, lobbyEndsAt ? (lobbyEndsAt - Date.now() < 8_000 ? 750 : 2_000) : 30_000);
+    const resume = () => { if (document.visibilityState !== 'hidden') void syncLobby(); };
+    window.addEventListener('online', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => { cancelled = true; window.clearInterval(interval);
+      window.removeEventListener('online', resume);
+      document.removeEventListener('visibilitychange', resume);
+    };
   }, [phase, lobbyEndsAt, applyCanonicalSnapshot]);
 
   useEffect(() => {
@@ -366,7 +380,7 @@ const App: React.FC = () => {
   }, [phase, startedAt]);
 
   useEffect(() => {
-    if (!isHost || phase !== GamePhase.PLAYING) return;
+    if (!isHost || recipientCount === 0 || phase !== GamePhase.PLAYING) return;
     const publish = () => broadcastSnapshot({
       id: SNAKE_SAMURAI_ROOM_ID, mode: mode, theme: themeRef.current, phase: GamePhase.PLAYING,
       startedAt: startedAtRef.current, endsAt: startedAtRef.current ? startedAtRef.current + 120_000 : null,
@@ -375,7 +389,7 @@ const App: React.FC = () => {
     publish();
     const timer = window.setInterval(publish, 120);
     return () => window.clearInterval(timer);
-  }, [isHost, phase, mode, broadcastSnapshot]);
+  }, [isHost, recipientCount, phase, mode, broadcastSnapshot]);
 
   useEffect(() => {
     if (!isHost || phase !== GamePhase.PLAYING) return;

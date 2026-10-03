@@ -47,27 +47,32 @@ const ArenaCards: React.FC<Props> = ({ t, arenaName, active = false }) => {
 
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
 
     const refresh = async () => {
-      const [main, disaster] = await Promise.all([
-        callRansenControl('GET', undefined, 'main'),
-        callRansenControl('GET', undefined, 'bousai-toyama'),
-      ]);
-      if (cancelled) return;
-      setStatuses((current) => ({
-        main: {
-          phase: main.ok && main.phase ? main.phase : null,
-          arenaName: main.ok && main.arenaName ? main.arenaName : current.main.arenaName,
-        },
-        'bousai-toyama': {
-          phase: disaster.ok && disaster.phase ? disaster.phase : null,
-          arenaName: disaster.ok && disaster.arenaName ? disaster.arenaName : current['bousai-toyama'].arenaName,
-        },
-      }));
+      if (cancelled || inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const [main, disaster] = await Promise.all([
+          callRansenControl('GET', undefined, 'main'),
+          callRansenControl('GET', undefined, 'bousai-toyama'),
+        ]);
+        if (cancelled) return;
+        setStatuses((current) => ({
+          main: {
+            phase: main.ok && main.phase ? main.phase : null,
+            arenaName: main.ok && main.arenaName ? main.arenaName : current.main.arenaName,
+          },
+          'bousai-toyama': {
+            phase: disaster.ok && disaster.phase ? disaster.phase : null,
+            arenaName: disaster.ok && disaster.arenaName ? disaster.arenaName : current['bousai-toyama'].arenaName,
+          },
+        }));
+      } finally { inFlight = false; }
     };
 
     void refresh();
-    const interval = window.setInterval(refresh, 5000);
+    const interval = window.setInterval(refresh, 60_000);
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') void refresh();
     };

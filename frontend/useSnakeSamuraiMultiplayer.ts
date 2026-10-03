@@ -13,6 +13,8 @@ interface Options {
   roomId: string;
   player: Player;
   phaseRef: React.MutableRefObject<GamePhase>;
+  phase: GamePhase;
+  lobbyEndsAt: number | null;
   onCommand: (command: string, payload: Record<string, any>) => CommandResult | Promise<CommandResult>;
   onSnapshot: (snapshot: Snapshot, clockShift?: number) => void;
   onMoveIntent: (playerId: string, targetX: number, targetY: number) => void;
@@ -20,14 +22,16 @@ interface Options {
   getSnapshot: () => Snapshot;
 }
 
-export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot }: Options) {
+export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, phase, lobbyEndsAt, onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot }: Options) {
   const [userId, setUserId] = useState<string>();
   const [isHost, setIsHost] = useState(false);
+  const [recipientCount, setRecipientCount] = useState(0);
   const [connection, setConnection] = useState<Connection>('connecting');
   const [registrationError, setRegistrationError] = useState('');
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const hostRef = useRef(false);
+  const registrationActive = phase === GamePhase.LOBBY && Boolean(lobbyEndsAt);
   const callbacks = useRef({ onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot });
   callbacks.current = { onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot };
 
@@ -97,6 +101,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
           })
           .on('presence', { event: 'sync' }, () => {
             const state = channel?.presenceState() || {};
+            setRecipientCount(Object.values(state).reduce((count, metas) => count + metas.length, 0) - (state[id]?.length ? 1 : 0));
             const active: Player[] = [];
             const gameKeys: string[] = [];
             Object.entries(state).forEach(([key, presences]: [string, any]) => {
@@ -119,10 +124,6 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
             if (status === 'SUBSCRIBED') {
               setConnection('online');
               channel?.track({ player: { ...player, id, isSpectator: phaseRef.current !== GamePhase.LOBBY }, role: 'game', onlineAt: new Date().toISOString() });
-              if (phaseRef.current === GamePhase.LOBBY) {
-                const registration = await registerSnakeSamuraiPlayer({ ...player, id }, roomId);
-                setRegistrationError(registration.ok ? '' : registration.message || '无法登记本场玩家');
-              }
               window.setTimeout(() => channel?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} }), 250);
             } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
               setConnection('error');
@@ -149,17 +150,27 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
   useEffect(() => {
     if (channelRef.current && connection === 'online' && userId) {
       channelRef.current.track({ player: { ...player, id: userId }, role: 'game', onlineAt: new Date().toISOString() });
-      if (phaseRef.current === GamePhase.LOBBY) void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId).then(result => setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家'));
     }
   }, [player.name, player.color, connection, userId, roomId, phaseRef]);
 
   useEffect(() => {
-    if (connection !== 'online' || !userId || phaseRef.current !== GamePhase.LOBBY) return;
-    const heartbeat = () => void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId).then(result => setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家'));
-    heartbeat();
+    if (connection !== 'online' || !userId || !registrationActive) return;
+    let cancelled = false;
+    let inFlight = false;
+    const heartbeat = async () => {
+      if (cancelled || inFlight || phaseRef.current !== GamePhase.LOBBY) return;
+      inFlight = true;
+      try {
+        const result = await registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId);
+        if (!cancelled) setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家');
+      } catch (error) {
+        console.error('Lobby registration failed', error);
+      } finally { inFlight = false; }
+    };
+    void heartbeat();
     const timer = window.setInterval(heartbeat, 5_000);
-    return () => window.clearInterval(timer);
-  }, [connection, userId, roomId, player.name, player.color, player.isSpectator, phaseRef]);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [registrationActive, connection, userId, roomId, player.name, player.color, player.isSpectator, phaseRef]);
 
   const sendMoveIntent = useCallback((targetX: number, targetY: number) => {
     if (channelRef.current && connection === 'online') {
@@ -195,6 +206,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand
   return {
     userId,
     isHost,
+    recipientCount,
     connection,
     registrationError,
     onlinePlayers,
