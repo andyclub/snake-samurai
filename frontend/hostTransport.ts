@@ -1,5 +1,11 @@
 import { acceptPlayerHostFrame, stopPlayerHostRoom } from './playerHostRuntime.ts';
 export type HostConnection = 'connecting' | 'online' | 'error';
+export interface HostConnectionFailure {
+  code: string;
+  status: number | null;
+  operation: 'session' | 'connection';
+  at: string;
+}
 export interface HostIdentity {
   ok: true;
   ticket: string;
@@ -21,7 +27,7 @@ export interface HostFrame {
   players: unknown[];
 }
 type Body = Record<string, unknown>;
-type Subscriber = { onFrame: (frame: HostFrame) => void; onConnection: (state: HostConnection) => void };
+type Subscriber = { onFrame: (frame: HostFrame) => void; onConnection: (state: HostConnection, failure?: HostConnectionFailure) => void };
 type Session = { identity: HostIdentity; signer: CryptoKey; verifier: CryptoKey };
 type IntentResult = 'ok' | 'error';
 type SendResult = { sent: IntentResult; accepted?: Promise<IntentResult> };
@@ -33,7 +39,7 @@ type Channel = {
   unsubscribe: () => Promise<unknown>;
 };
 type Room = {
-  id: string; subscribers: Set<Subscriber>; connection: HostConnection;
+  id: string; subscribers: Set<Subscriber>; connection: HostConnection; failure?: HostConnectionFailure;
   generation: number; session?: Session; socket?: WebSocket; channel?: Channel; nonce?: string;
   starting?: Promise<void>; queue: Promise<void>; incoming: Promise<void>; sequence: number;
   frame?: HostFrame; requireFull: boolean; requestingFull: boolean; retry: number;
@@ -104,6 +110,18 @@ async function keys() {
   })().catch(error => { keyPromise = undefined; throw error; });
   return keyPromise;
 }
+const sessionFailureCodes = new Set([
+  'HOST_NOT_CONFIGURED', 'HOST_MODE_UNAVAILABLE', 'SELECTED_HOST_UNAVAILABLE',
+  'HOST_RESPONSE_FAILED', 'HOST_UNAVAILABLE', 'METHOD_NOT_ALLOWED', 'NOT_FOUND',
+  'REQUEST_TOO_LARGE', 'INVALID_REQUEST',
+]);
+function connectionFailure(code: string, operation: HostConnectionFailure['operation'], status: number | null = null): HostConnectionFailure {
+  return { code, status, operation, at: new Date().toISOString() };
+}
+class HostFailureError extends Error {
+  readonly failure: HostConnectionFailure;
+  constructor(failure: HostConnectionFailure) { super(failure.code); this.failure = failure; }
+}
 async function session(refresh = false): Promise<Session> {
   if (!refresh && currentSession) return currentSession;
   if (!sessionPromise) sessionPromise = (async () => {
@@ -114,12 +132,19 @@ async function session(refresh = false): Promise<Session> {
       body: JSON.stringify({ publicKey: key.publicKey, ...(resumeTicket ? { resumeTicket } : {}) }),
       signal: AbortSignal.timeout(8_000),
     });
-    const data: unknown = await response.json();
-    if (!response.ok || !object(data) || data.ok !== true || !nonempty(data.ticket) || !nonempty(data.playerId)
+    const status = Number.isInteger(response.status) && response.status >= 100 && response.status <= 599 ? response.status : null;
+    let data: unknown;
+    try { data = await response.json(); }
+    catch { throw new HostFailureError(connectionFailure(response.ok ? 'SESSION_INVALID' : 'SESSION_FAILED', 'session', status)); }
+    if (!response.ok) {
+      const code = object(data) && typeof data.code === 'string' && sessionFailureCodes.has(data.code) ? data.code : 'SESSION_FAILED';
+      throw new HostFailureError(connectionFailure(code, 'session', status));
+    }
+    if (!object(data) || data.ok !== true || !nonempty(data.ticket) || !nonempty(data.playerId)
       || !p256(data.statePublicKey) || !integer(data.fencingToken)
       || (data.mode !== 'shanghai' && data.mode !== 'fallback' && data.mode !== 'player')
       || (data.mode !== 'shanghai' && !nonempty(data.nonce))
-      || (data.designatedPlayerId !== undefined && !nonempty(data.designatedPlayerId))) throw new Error('Invalid game session');
+      || (data.designatedPlayerId !== undefined && !nonempty(data.designatedPlayerId))) throw new HostFailureError(connectionFailure('SESSION_INVALID', 'session', status));
     const identity: HostIdentity = {
       ok: true, ticket: data.ticket, playerId: data.playerId, publicKey: key.publicKey,
       statePublicKey: data.statePublicKey, fencingToken: data.fencingToken,
@@ -131,16 +156,20 @@ async function session(refresh = false): Promise<Session> {
     writeStorage(TICKET_STORE, identity.ticket);
     currentSession = { identity, signer: key.signer, verifier };
     return currentSession;
-  })().finally(() => { sessionPromise = undefined; });
+  })().catch(error => {
+    throw error instanceof HostFailureError ? error : new HostFailureError(connectionFailure('CONNECTION_LOST', 'session'));
+  }).finally(() => { sessionPromise = undefined; });
   return sessionPromise;
 }
 export async function getHostIdentity(): Promise<HostIdentity> {
   return copy((await session()).identity);
 }
-function notifyConnection(room: Room, connection: HostConnection) {
+function notifyConnection(room: Room, connection: HostConnection, failure?: HostConnectionFailure) {
   room.connection = connection;
+  if (connection === 'online') room.failure = undefined;
+  else if (failure) room.failure = copy(failure);
   for (const subscriber of room.subscribers) {
-    try { subscriber.onConnection(connection); } catch (error) { console.error('Host connection subscriber failed', error); }
+    try { subscriber.onConnection(connection, room.failure ? copy(room.failure) : undefined); } catch (error) { console.error('Host connection subscriber failed', error); }
   }
 }
 function invalidFrame(room: Room) {
@@ -151,10 +180,11 @@ function invalidFrame(room: Room) {
   }
 }
 function protocolError(room: Room) {
+  room.failure = connectionFailure('PROTOCOL_ERROR', 'connection');
   // Authenticated malformed frames are observable without breaking a healthy
   // transport or allowing unauthenticated broadcasts to force reconnection.
   for (const subscriber of room.subscribers) {
-    try { subscriber.onConnection('error'); } catch (error) { console.error('Host protocol subscriber failed', error); }
+    try { subscriber.onConnection('error', copy(room.failure!)); } catch (error) { console.error('Host protocol subscriber failed', error); }
   }
 }
 function notifyFrame(room: Room) {
@@ -190,10 +220,10 @@ function scheduleReconnect(room: Room) {
     if (visible()) void connect(room, true);
   }, delay);
 }
-function fail(room: Room, generation: number) {
+function fail(room: Room, generation: number, failure = connectionFailure('CONNECTION_LOST', 'connection')) {
   if (room.generation !== generation) return;
   stopConnection(room);
-  notifyConnection(room, 'error');
+  notifyConnection(room, 'error', failure);
   scheduleReconnect(room);
 }
 async function signedSend(room: Room, body: Body): Promise<SendResult> {
@@ -393,7 +423,11 @@ async function connect(room: Room, refresh = false) {
             else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') fail(room, generation);
           });
       }
-    } catch (error) { console.error('Host connection failed', error); fail(room, generation); }
+    } catch (error) {
+      const failure = error instanceof HostFailureError ? error.failure : connectionFailure('CONNECTION_LOST', 'connection');
+      console.error('Host connection failed', failure.code);
+      fail(room, generation, failure);
+    }
   })().finally(() => { room.starting = undefined; });
   return room.starting;
 }
@@ -448,9 +482,9 @@ export function subscribeHost(id: string, onFrame: Subscriber['onFrame'], onConn
   const room = getRoom(id);
   const subscriber = { onFrame, onConnection };
   room.subscribers.add(subscriber);
-  onConnection(room.connection);
+  onConnection(room.connection, room.failure ? copy(room.failure) : undefined);
   if (room.frame) onFrame(copy(room.frame));
-  if (!room.socket && !room.channel) void connect(room);
+  if (!room.socket && !room.channel && !room.reconnectTimer) void connect(room);
   return () => {
     room.subscribers.delete(subscriber);
     if (!room.subscribers.size) {
@@ -460,6 +494,12 @@ export function subscribeHost(id: string, onFrame: Subscriber['onFrame'], onConn
       rooms.delete(id);
     }
   };
+}
+/** Retry only a watched room; connection setup already serializes concurrent retries. */
+export async function retryHostConnection(id: string): Promise<void> {
+  const room = rooms.get(id);
+  if (!room?.subscribers.size) return;
+  await connect(room, true);
 }
 export async function sendHostIntent(id: string, body: Body): Promise<IntentResult> {
   if (!object(body) || !safeTree(body)) return 'error';

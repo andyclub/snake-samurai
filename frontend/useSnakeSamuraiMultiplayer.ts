@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArenaState, GamePhase, Player } from './types';
-import { getHostIdentity, sendHostIntent, subscribeHost } from './hostTransport';
+import { getHostIdentity, sendHostIntent, subscribeHost, retryHostConnection } from './hostTransport';
+import type { HostConnectionFailure } from './hostTransport';
 
 export type Snapshot = ArenaState & { lobbyEndsAt?: number | null };
 type Connection = 'connecting' | 'online' | 'error';
@@ -18,6 +19,7 @@ const noBroadcast = (_payload?: unknown) => undefined;
 export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailSpill }: Options) {
   const [userId, setUserId] = useState<string>();
   const [connection, setConnection] = useState<Connection>('connecting');
+  const [connectionFailure, setConnectionFailure] = useState<HostConnectionFailure | null>(null);
   const [registrationError, setRegistrationError] = useState('');
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
   const callbacks = useRef({ onSnapshot, onTailSpill });
@@ -53,12 +55,21 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
         }
       }
       previous = canonical;
-    }, status => { if (!cancelled) setConnection(status); });
-    void getHostIdentity().then(identity => {
-      if (!cancelled) setUserId(identity.playerId);
-    }).catch(error => {
-      console.error('Snake guest session failed', error);
-      if (!cancelled) setConnection('error');
+    }, (status, failure) => {
+      if (cancelled) return;
+      setConnection(status);
+      if (status === 'online') {
+        setConnectionFailure(null);
+        // Verified reconnects can recover a session that failed on first load.
+        void getHostIdentity().then(identity => {
+          if (!cancelled) setUserId(identity.playerId);
+        }).catch(() => {
+          if (!cancelled) {
+            setConnection('error');
+            setConnectionFailure({ code: 'HOST_IDENTITY_FAILED', status: null, operation: 'session', at: new Date().toISOString() });
+          }
+        });
+      } else if (failure) setConnectionFailure(failure);
     });
     return () => {
       cancelled = true;
@@ -76,6 +87,8 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
     return () => { cancelled = true; };
   }, [roomId, connection, userId, player.name, player.color]);
 
+  const retryConnection = useCallback(() => { void retryHostConnection(roomId); }, [roomId]);
+
   const joinMatch = useCallback(async (isSpectator: boolean) => {
     const result = await sendHostIntent(roomId, { type: 'join', name: player.name, color: player.color, isSpectator });
     if (mounted.current) setRegistrationError(result === 'ok' ? '' : '无法登记本场玩家');
@@ -89,7 +102,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
   const isJoined = onlinePlayers.some(member => member.id === userId && !member.isBot && !member.isSpectator);
 
   return {
-    userId, isHost: false, isJoined, connection, registrationError, onlinePlayers,
+    userId, isHost: false, isJoined, connection, connectionFailure, retryConnection, registrationError, onlinePlayers,
     joinMatch, sendIntent, requestSnapshot, sendMoveIntent,
     // Legacy physics remains guarded off. Browser state is never published.
     broadcastSnapshot: noBroadcast,

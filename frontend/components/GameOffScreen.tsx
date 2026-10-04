@@ -10,7 +10,7 @@ interface Props {
   gameUrl?: string;
 }
 
-const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://g.kazeabc.com' }) => {
+const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://h.kazeabc.com' }) => {
   const [showInviteQr, setShowInviteQr] = useState(false);
 
   return (
@@ -40,18 +40,10 @@ const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://g.kaz
         </div>
 
         <div className="flex flex-col sm:flex-row justify-center items-center gap-8 sm:gap-16 py-4">
-          {/* LINE QR Code */}
-          <div className="flex flex-col items-center gap-3">
-            <div className="bg-white p-2 rounded-xl shadow-lg">
-              <img 
-                src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://line.me/ti/p/n6lUPFD-0p" 
-                alt="LINE QR" 
-                className="w-32 h-32"
-              />
-            </div>
-            <span className="text-sm font-bold text-emerald-400">{t('line.requestStart')}</span>
-            <span className="text-xs text-slate-400">{t('contact.line')}</span>
-          </div>
+          <a href="https://docs.google.com/forms/d/e/1FAIpQLSergjEZdyfpqHWrkKDZgaDsGGVd880dc38B1Axp7KD9DP6aRA/viewform" target="_blank" rel="noopener noreferrer"
+            className="inline-flex min-h-16 items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-6 py-4 font-black text-emerald-100 transition hover:bg-emerald-400/20">
+            {t('feedback.form')}
+          </a>
 
           <button
             type="button"
@@ -63,7 +55,8 @@ const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://g.kaz
           </button>
         </div>
 
-        <div className="flex justify-center border-t border-white/10 pt-6">
+        <div className="flex flex-wrap items-center justify-center gap-4 border-t border-white/10 pt-6">
+          <span className="text-xs text-slate-400">V{__REPO_COMMIT_COUNT__} {__BUILD_DATE__} by <a href="https://h.kazeabc.com" target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline">h.kazeabc.com</a></span>
           <HomeLink />
         </div>
 
@@ -74,7 +67,7 @@ const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://g.kaz
             <button type="button" onClick={() => setShowInviteQr(false)} aria-label={t('btn.close')} className="absolute right-3 top-3 rounded-full bg-slate-900 p-2 text-white active:scale-90"><X className="h-5 w-5" /></button>
             <img src={`https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(gameUrl)}`} alt={t('qr.game')} className="mx-auto mt-7 aspect-square w-full rounded-xl" />
             <p className="mt-4 text-xl font-black">{t('qr.game')}</p>
-            <p className="mt-1 text-sm text-slate-500">g.kazeabc.com</p>
+            <p className="mt-1 text-sm text-slate-500">{new URL(gameUrl).host}</p>
           </div>
         </div>
       )}

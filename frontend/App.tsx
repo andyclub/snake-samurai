@@ -5,6 +5,7 @@ import GameBoard from './components/GameBoard';
 import LobbyScreen from './components/LobbyScreen';
 import TheaterScreen from './components/TheaterScreen';
 import GameOffScreen from './components/GameOffScreen';
+import ConnectionStatus from './components/ConnectionStatus';
 import { audio } from './audio';
 import { useSnakeSamuraiMultiplayer } from './useSnakeSamuraiMultiplayer';
 import { generateSingleFood } from './game/foodGenerator';
@@ -125,7 +126,7 @@ const App: React.FC = () => {
   }, [player.id]);
 
   // All authority and identity arrive through verified host frames.
-  const { userId, isHost, isJoined, connection, registrationError, onlinePlayers, joinMatch, sendIntent,
+  const { userId, isHost, isJoined, connection, connectionFailure, retryConnection, registrationError, onlinePlayers, joinMatch, sendIntent,
     sendMoveIntent, broadcastSnapshot, broadcastTailSpill, requestSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: SNAKE_SAMURAI_ROOM_ID,
     player,
@@ -361,6 +362,7 @@ const App: React.FC = () => {
 
   return (
     <div className="w-screen h-[100dvh] bg-slate-950 text-white font-sans overflow-hidden">
+      <ConnectionStatus failure={connectionFailure} busy={connection === 'connecting'} roomId={SNAKE_SAMURAI_ROOM_ID} site="h.kazeabc.com" onRetry={retryConnection} t={key => translations[lang]?.[key] || key} />
       {themeAlert && <div role="alert" className="fixed inset-0 z-[200] grid place-items-center overflow-hidden bg-red-950/55 backdrop-blur-sm animate-pulse">
         <div className="absolute inset-0 opacity-80" style={{background:'linear-gradient(31deg,transparent 46%,#fff 47%,transparent 48%),linear-gradient(147deg,transparent 45%,#fb7185 46%,transparent 47%),linear-gradient(72deg,transparent 52%,#fff 53%,transparent 54%)'}} />
         <div className="relative rounded-3xl border-4 border-red-200 bg-slate-950/90 px-8 py-6 text-center text-2xl font-black shadow-[0_0_80px_#ef4444]">⚡ 与本场主题不相关<br/><span className="mt-2 block text-base text-red-200">{themeAlert}</span></div>
@@ -380,7 +382,8 @@ const App: React.FC = () => {
           lang={lang}
           onSelectLanguage={setLang}
           lobbyEndsAt={lobbyEndsAt}
-          connectionError={controlError || registrationError || (connection === 'error' ? '实时连接异常，正在重试' : '')}
+          connectionUnavailable={Boolean(connectionFailure)}
+          connectionError={controlError || registrationError}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}

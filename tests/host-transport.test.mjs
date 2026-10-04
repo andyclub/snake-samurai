@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { webcrypto } from 'node:crypto';
 import { registerHooks } from 'node:module';
 
@@ -67,6 +68,8 @@ async function fixture(mode = 'shanghai') {
     requests.push({ url, ...options, parsed: JSON.parse(options.body) });
     state.sessionCount += 1;
     if (state.failSession) throw new Error('Offline');
+    if (state.sessionFetch) return state.sessionFetch(options);
+    if (state.sessionResponse) return state.sessionResponse.clone();
     return {
       ok: true,
       json: async () => ({ ok: true, ticket: `ticket-${state.sessionCount}`, playerId: 'server-player',
@@ -91,9 +94,9 @@ async function fixture(mode = 'shanghai') {
   const transport = await import(`../frontend/hostTransport.ts?test=${++moduleNumber}`);
   const stops = [];
   const watch = room => {
-    const frames = [], connections = [];
-    stops.push(transport.subscribeHost(room, frame => frames.push(frame), connection => connections.push(connection)));
-    return { frames, connections };
+    const frames = [], connections = [], failures = [];
+    stops.push(transport.subscribeHost(room, frame => frames.push(frame), (connection, failure) => { connections.push(connection); failures.push(failure); }));
+    return { frames, connections, failures };
   };
   const activate = async (room = 'snake-free', nonce = 'nonce-1') => {
     await waitFor(() => sockets.some(socket => new URL(socket.url).searchParams.get('room') === room && socket.readyState === 1));
@@ -400,4 +403,74 @@ test('disconnect resolves pending admission as failed rather than leaving a fals
     socket.disconnect();
     assert.equal(await join,'error');
   } finally {f.cleanup();}
+});
+
+test('HTTP 503 configuration failure survives connecting and manual retry recovers signed state', async () => {
+  const nativeFetch = globalThis.fetch;
+  let configured = false;
+  const server = createServer(async (request, response) => {
+    for await (const chunk of request) { /* Consume the test public-key request. */ }
+    response.writeHead(configured ? 200 : 503, { 'content-type': 'application/json' });
+    response.end(JSON.stringify(configured ? { ok: true, ticket: 'recovered-ticket', playerId: 'server-player',
+      statePublicKey: serverPublicKey, fencingToken: 1, mode: 'shanghai' }
+      : { ok: false, code: 'HOST_NOT_CONFIGURED', detail: 'test-only-private-config' }));
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const f = await fixture();
+  try {
+    f.state.sessionFetch = options => nativeFetch('http://127.0.0.1:' + server.address().port + '/api/game-session', options);
+    const viewer = f.watch('snake-free');
+    await waitFor(() => viewer.connections.at(-1) === 'error');
+    const failure = viewer.failures.at(-1);
+    assert.equal(failure.code, 'HOST_NOT_CONFIGURED');
+    assert.equal(failure.status, 503);
+    assert.equal(failure.operation, 'session');
+    assert.ok(Number.isFinite(Date.parse(failure.at)));
+    assert.equal(JSON.stringify(failure).includes('private-config'), false);
+    assert.equal(f.sockets.length, 0);
+    assert.equal(f.channels.length, 0);
+    const second = f.watch('snake-free');
+    assert.equal(second.failures[0].code, 'HOST_NOT_CONFIGURED');
+    await waitFor(() => second.connections.at(-1) === 'error');
+    configured = true;
+    const before = f.requests.length;
+    await Promise.all([f.transport.retryHostConnection('snake-free'), f.transport.retryHostConnection('snake-free')]);
+    assert.equal(f.requests.length, before + 1);
+    assert.equal(f.sockets.length, 1);
+    assert.equal(viewer.connections.at(-1), 'connecting');
+    assert.equal(viewer.failures.at(-1).code, 'HOST_NOT_CONFIGURED');
+    const socket = await f.activate();
+    await waitFor(() => viewer.connections.at(-1) === 'online');
+    assert.equal(viewer.failures.at(-1), undefined);
+    socket.emit(await signed(f.frame()));
+    await waitFor(() => viewer.frames.length === 1);
+    assert.equal((await f.transport.getHostIdentity()).mode, 'shanghai');
+    const after = f.requests.length;
+    await f.transport.retryHostConnection('not-watched');
+    assert.equal(f.requests.length, after);
+    assert.equal(f.channels.length, 0);
+  } finally { f.cleanup(); await new Promise(resolve => server.close(resolve)); }
+});
+
+test('unknown HTTP errors and failed network sessions expose only bounded safe failure metadata', async () => {
+  const f = await fixture();
+  try {
+    f.state.sessionResponse = new Response(JSON.stringify({
+      ok: false, code: 'test-only-secret-code', message: 'https://secret.invalid/private-key',
+    }), { status: 502 });
+    const viewer = f.watch('snake-free');
+    await waitFor(() => viewer.connections.at(-1) === 'error');
+    assert.deepEqual(Object.keys(viewer.failures.at(-1)).sort(), ['at', 'code', 'operation', 'status']);
+    assert.equal(viewer.failures.at(-1).code, 'SESSION_FAILED');
+    assert.equal(viewer.failures.at(-1).status, 502);
+    f.state.sessionResponse = undefined;
+    f.state.failSession = true;
+    await f.transport.retryHostConnection('snake-free');
+    assert.equal(viewer.connections.at(-1), 'error');
+    assert.equal(viewer.failures.at(-1).code, 'CONNECTION_LOST');
+    assert.equal(viewer.failures.at(-1).operation, 'session');
+    assert.equal(viewer.failures.at(-1).status, null);
+    assert.equal(JSON.stringify(viewer.failures).includes('secret'), false);
+    assert.equal(f.sockets.length, 0);
+  } finally { f.cleanup(); }
 });

@@ -61,7 +61,7 @@ function harness() {
   const localStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value) };
   let now = 20_000;
   class TestDate extends Date { static now() { return now; } }
-  const globals = { console, Date: TestDate, Math, URL, URLSearchParams, window, document, localStorage, performance: { now: () => now },
+  const globals = { __REPO_COMMIT_COUNT__:0, __BUILD_DATE__:'2000-01-01', console, Date: TestDate, Math, URL, URLSearchParams, window, document, localStorage, performance: { now: () => now },
     requestAnimationFrame: () => { throw new Error('Browser host physics must remain disabled'); }, cancelAnimationFrame() {} };
   function load(path, dependencies) {
     const code = transformSync(readFileSync(new URL(path, import.meta.url), 'utf8'), { loader: path.endsWith('.tsx') ? 'tsx' : 'ts', format: 'cjs', target: 'es2022' }).code;
@@ -94,9 +94,10 @@ function harness() {
   };
 }
 function fakeHost() {
-  const subscriptions = [], intents = [];
+  const subscriptions = [], intents = [], retries = [];
   return {
-    subscriptions, intents,
+    subscriptions, intents, retries,
+    retryHostConnection: room => retries.push(room),
     subscribeHost(room, onFrame, onConnection) {
       const entry = { room, onFrame, onConnection, stopped: false };
       subscriptions.push(entry);
@@ -139,11 +140,12 @@ test('hook uses server identity, edits/reconnect profile only, and never publish
   try {
     h.mount(hook.useSnakeSamuraiMultiplayer, options);
     await flush();
-    assert.equal(h.output().userId, 'server-player');
+    assert.equal(h.output().userId, undefined,'Identity is fetched after verified online, not once at mount');
     assert.equal(h.output().isHost, false);
     assert.equal(h.output().isJoined, false);
     host.subscriptions[0].onConnection('online');
     await flush();
+    assert.equal(h.output().userId,'server-player');
     equal(host.intents.map(item => item.body), [{ type: 'profile', name: 'Guest', color: '#123456' }]);
     h.update({ ...options, player: { ...player, name: 'Edited', color: '#654321', isSpectator: false } });
     await flush();
@@ -193,7 +195,10 @@ test('join and exit are explicit scoped intents, and profile cannot enroll the u
   const hook = h.load('../frontend/useSnakeSamuraiMultiplayer.ts', { './types': { GamePhase: phases }, './hostTransport': host });
   try {
     h.mount(hook.useSnakeSamuraiMultiplayer, { roomId: 'snake-free', player, onSnapshot() {}, onTailSpill() {} });
+    host.subscriptions[0].onConnection('online');
     await flush();
+    equal(host.intents.map(item=>item.body),[{type:'profile',name:'Guest',color:'#123456'}]);
+    host.intents.length=0;
     await h.output().joinMatch(false);
     await h.output().joinMatch(true);
     equal(host.intents.map(item => item.body), [
@@ -209,12 +214,12 @@ test('join and exit are explicit scoped intents, and profile cannot enroll the u
 function appFixture() {
   const h = harness(), intents = [], profileChanges = [], audioCalls = [];
   let options;
-  const components = Object.fromEntries(['GameBoard', 'LobbyScreen', 'TheaterScreen', 'GameOffScreen'].map(name => [name, function Component() {}]));
+  const components = Object.fromEntries(['GameBoard', 'LobbyScreen', 'TheaterScreen', 'GameOffScreen', 'ConnectionStatus'].map(name => [name, function Component() {}]));
   const audio = Object.fromEntries(['init', 'setBGM', 'playTailSpill', 'playPickup', 'playWordCompleted', 'playSentenceCompleted', 'playVictory'].map(name => [name, (...args) => audioCalls.push([name, ...args])]));
   const hook = supplied => {
     options = supplied;
     return {
-      userId: 'server-player', isHost: false, isJoined: false, connection: 'online', registrationError: '', onlinePlayers: [],
+      userId: 'server-player', isHost: false, isJoined: false, connection: 'online', connectionFailure:null, retryConnection(){}, registrationError: '', onlinePlayers: [],
       joinMatch: async isSpectator => { intents.push({ type: 'join', isSpectator }); return 'ok'; },
       sendIntent: async body => { intents.push(body); return 'ok'; },
       sendMoveIntent: (targetX, targetY) => { intents.push({ type: 'input', targetX, targetY }); },
@@ -340,4 +345,34 @@ test('Lobby profile edits remain separate from explicit join/exit and null deadl
     find(h.output(), node => node.type === 'button' && node.props.children.includes('退出本局 · 旁观')).props.onClick();
     equal(choices, [false, true]);
   } finally { h.cleanup(); }
+});
+
+
+test('failed initial session recovers canonical identity on verified online and sends profile only',async()=>{
+  const h=harness(),host=fakeHost();
+  let calls=0;
+  host.getHostIdentity=async()=>{if(++calls===1)throw new Error('test-only private URL https://unit.invalid');return{playerId:'recovered-player',mode:'player'};};
+  const hook=h.load('../frontend/useSnakeSamuraiMultiplayer.ts',{'./types':{GamePhase:phases},'./hostTransport':host});
+  const failure={code:'SESSION_HTTP_ERROR',status:503,operation:'session',at:'2026-10-04T00:00:00.000Z'};
+  try {
+    h.mount(hook.useSnakeSamuraiMultiplayer,{roomId:'snake-free',player,onSnapshot(){},onTailSpill(){}});
+    await flush();assert.equal(calls,0);assert.equal(h.output().connectionFailure,null);
+    host.subscriptions[0].onConnection('error',failure);await flush();
+    equal(h.output().connectionFailure,failure);
+    h.output().retryConnection();equal(host.retries,['snake-free']);
+    host.subscriptions[0].onConnection('online');await flush();
+    assert.equal(h.output().connection,'error');
+    assert.equal(h.output().connectionFailure.code,'HOST_IDENTITY_FAILED');
+    assert.equal(h.output().connectionFailure.status,null);
+    assert.equal(h.output().connectionFailure.operation,'session');
+    assert.ok(!JSON.stringify(h.output().connectionFailure).includes('unit.invalid'));
+    assert.equal(host.intents.length,0);
+    h.output().retryConnection();host.subscriptions[0].onConnection('online');await flush();
+    assert.equal(calls,2);assert.equal(h.output().userId,'recovered-player');
+    assert.equal(h.output().connection,'online');assert.equal(h.output().connectionFailure,null);
+    assert.equal(h.output().isHost,false);assert.equal(h.output().isJoined,false);
+    equal(host.intents.map(item=>item.body),[{type:'profile',name:'Guest',color:'#123456'}]);
+    h.cleanup();host.subscriptions[0].onConnection('error',failure);await flush();
+    assert.equal(h.output().connectionFailure,null);
+  }finally{h.cleanup();}
 });

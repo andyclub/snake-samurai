@@ -18,6 +18,7 @@ interface Props {
   onSelectLanguage: (lang: Language) => void;
   lobbyEndsAt?: number | null;
   connectionError?: string;
+  connectionUnavailable?: boolean;
   t: (key: string) => string;
 }
 
@@ -41,6 +42,7 @@ export const LobbyScreen: React.FC<Props> = ({
   onSelectLanguage,
   lobbyEndsAt,
   connectionError,
+  connectionUnavailable = false,
   t
 }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
@@ -82,7 +84,7 @@ export const LobbyScreen: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 w-full max-w-full overflow-x-hidden overscroll-none touch-pan-y bg-[radial-gradient(circle_at_top,#172554_0%,#0f172a_42%,#020617_100%)] text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8">
+    <div style={connectionUnavailable ? { paddingBottom: 160 } : undefined} className="fixed inset-0 z-50 w-full max-w-full overflow-x-hidden overscroll-none touch-pan-y bg-[radial-gradient(circle_at_top,#172554_0%,#0f172a_42%,#020617_100%)] text-white flex flex-col justify-between pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(1.25rem,env(safe-area-inset-bottom))] px-4 sm:px-8">
       <FullscreenCountdown value={secondsLeft || 0} label={t('countdown.gameStart')} active={Boolean(lobbyEndsAt)} />
       <div className="pointer-events-none absolute left-[-5rem] top-20 h-52 w-52 rounded-full bg-blue-500/15 blur-3xl" />
       <div className="pointer-events-none absolute bottom-10 right-[-4rem] h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -118,7 +120,7 @@ export const LobbyScreen: React.FC<Props> = ({
           >
             <QrCode className="w-4 h-4 text-cyan-400" />
             <span className="hidden sm:inline">h.kazeabc.com</span>
-            <span className="sm:hidden">邀请</span>
+            <span className="sm:hidden">{t('btn.inviteGame')}</span>
           </button>
 
           {/* Language Menu */}
@@ -224,6 +226,17 @@ export const LobbyScreen: React.FC<Props> = ({
           </button>
         </div>
       </footer>
+
+      <div className="relative z-20 mx-auto flex w-full max-w-4xl shrink-0 flex-wrap items-center justify-center gap-3 py-2 text-center">
+        <button type="button" onClick={() => setShowQRCodeModal(true)} aria-label={t('btn.inviteGame')} className="flex items-center gap-2 rounded-xl border border-cyan-300/20 bg-slate-950/70 p-2">
+          <img src={QR_IMAGE_URL} alt={t('qr.game')} className="h-14 w-14" />
+          <span className="text-xs font-bold text-cyan-200">{t('btn.inviteGame')}</span>
+        </button>
+        <div className="space-y-1 text-xs">
+          <a href="https://docs.google.com/forms/d/e/1FAIpQLSergjEZdyfpqHWrkKDZgaDsGGVd880dc38B1Axp7KD9DP6aRA/viewform" target="_blank" rel="noopener noreferrer" className="block font-bold text-emerald-300 hover:underline">{t('feedback.form')}</a>
+          <p className="text-slate-400">V{__REPO_COMMIT_COUNT__} {__BUILD_DATE__} by <a href={INVITE_URL} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline">h.kazeabc.com</a></p>
+        </div>
+      </div>
 
       {/* FAQ / Rules Modal */}
       {showRulesModal && <SnakeFaqModal lang={lang} playerColor={selectedColor} playerName={nameInput} onClose={() => setShowRulesModal(false)} />}
