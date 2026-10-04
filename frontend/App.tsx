@@ -1,3 +1,5 @@
+import { useScreenWakeLock } from './useScreenWakeLock';
+import ScreenWakeLockSetting from './components/ScreenWakeLockSetting';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ArenaBounds, ArenaMode, ArenaState, CandidateSentence, CandidateWord, FoodState, GamePhase, Language, Player, SnakeState, Theme } from './types';
 import { translations, getBrowserLanguage } from './i18n';
@@ -34,6 +36,7 @@ const App: React.FC = () => {
   const [mode, setMode] = useState<ArenaMode>(ROOM_MODE);
   const [theme, setTheme] = useState<Theme>(ROOM_THEME);
   const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(null);
+  const wake = useScreenWakeLock((phase === GamePhase.PLAYING || (phase === GamePhase.LOBBY && lobbyEndsAt !== null && Number.isFinite(lobbyEndsAt))), 'snake_samurai_screen_wake_lock');
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
@@ -376,6 +379,7 @@ const App: React.FC = () => {
       )}
       {(phase === GamePhase.LOBBY || phase === GamePhase.THEATER && showLobbyFromResults) && (
         <LobbyScreen
+          wakeLockSetting={<ScreenWakeLockSetting {...wake} t={k => translations[lang]?.[k] || k} />}
           player={player}
           players={onlinePlayers}
           isJoined={isJoined}
@@ -394,6 +398,7 @@ const App: React.FC = () => {
 
       {phase === GamePhase.PLAYING && (
         <GameBoard
+          wakeLockSetting={<ScreenWakeLockSetting {...wake} placement="below" t={k => translations[lang]?.[k] || k} />}
           player={player}
           snakesRef={snakesRef}
           foodsRef={foodsRef}

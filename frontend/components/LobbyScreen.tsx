@@ -7,6 +7,7 @@ import FullscreenCountdown from './FullscreenCountdown';
 import SnakeFaqModal from './SnakeFaqModal';
 
 interface Props {
+  wakeLockSetting?: React.ReactNode;
   player: Player;
   players: Player[];
   isJoined: boolean;
@@ -43,7 +44,8 @@ export const LobbyScreen: React.FC<Props> = ({
   lobbyEndsAt,
   connectionError,
   connectionUnavailable = false,
-  t
+  t,
+  wakeLockSetting
 }) => {
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showQRCodeModal, setShowQRCodeModal] = useState(false);
@@ -232,6 +234,7 @@ export const LobbyScreen: React.FC<Props> = ({
           <img src={QR_IMAGE_URL} alt={t('qr.game')} className="h-14 w-14" />
           <span className="text-xs font-bold text-cyan-200">{t('btn.inviteGame')}</span>
         </button>
+        {wakeLockSetting}
         <div className="space-y-1 text-xs">
           <a href="https://docs.google.com/forms/d/e/1FAIpQLSergjEZdyfpqHWrkKDZgaDsGGVd880dc38B1Axp7KD9DP6aRA/viewform" target="_blank" rel="noopener noreferrer" className="block font-bold text-emerald-300 hover:underline">{t('feedback.form')}</a>
           <p className="text-slate-400">V{__REPO_COMMIT_COUNT__} {__BUILD_DATE__} by <a href={INVITE_URL} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:underline">h.kazeabc.com</a></p>

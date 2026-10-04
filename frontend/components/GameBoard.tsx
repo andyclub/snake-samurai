@@ -14,6 +14,7 @@ import { Trophy, Sparkles, Globe, HelpCircle, QrCode, X } from 'lucide-react';
 type MutableRef<T> = React.MutableRefObject<T>;
 
 interface Props {
+  wakeLockSetting?: React.ReactNode;
   player: Player;
   snakesRef: MutableRef<Record<string, SnakeState>>;
   foodsRef: MutableRef<Record<string, FoodState>>;
@@ -51,7 +52,8 @@ export const GameBoard: React.FC<Props> = ({
   onComposeHeldFoods,
   onSpillTail,
   tailSpillEffect,
-  t
+  t,
+  wakeLockSetting
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [clickEffect, setClickEffect] = useState<{ x: number; y: number; time: number } | null>(null);
@@ -284,7 +286,7 @@ export const GameBoard: React.FC<Props> = ({
       `}</style>
 
       {/* Top HUD Controls Bar with Mobile Safe Area Support */}
-      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 right-3 sm:left-4 sm:right-4 flex items-center justify-between pointer-events-none z-20 gap-2">
+      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-3 right-3 sm:left-4 sm:right-4 flex flex-wrap items-center justify-between pointer-events-none z-20 gap-2">
         {/* Theme & Mode Banner */}
         <div className="bg-slate-900/90 border border-cyan-500/30 backdrop-blur-md rounded-2xl px-3 py-1.5 sm:px-4 sm:py-2 shadow-xl flex items-center gap-2 sm:gap-3">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-pulse" />
@@ -311,6 +313,7 @@ export const GameBoard: React.FC<Props> = ({
 
         {/* Top Right Actions: Language, FAQ, QR Code */}
         <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
+          {wakeLockSetting}
           {/* QR Code Button */}
           <button
             type="button"
