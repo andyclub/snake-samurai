@@ -1,206 +1,98 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RealtimeChannel } from '@supabase/supabase-js';
-import { ArenaState, GamePhase, MatchHistory, Player, SnakeState } from './types';
-import { callSnakeSamuraiControl, registerSnakeSamuraiPlayer, supabase } from './supabase';
-import { getSharedDeviceId } from './deviceIdentity';
+import { ArenaState, GamePhase, Player } from './types';
+import { getHostIdentity, sendHostIntent, subscribeHost } from './hostTransport';
 
-export type Snapshot = ArenaState;
+export type Snapshot = ArenaState & { lobbyEndsAt?: number | null };
 type Connection = 'connecting' | 'online' | 'error';
 export type CommandResult = { ok: boolean; message: string };
-export type HistoryResult = { ok: boolean; message?: string; page: number; pageSize: number; total: number; totalPages: number; matches: MatchHistory[] };
 
 interface Options {
   roomId: string;
   player: Player;
-  phaseRef: React.MutableRefObject<GamePhase>;
-  onCommand: (command: string, payload: Record<string, any>) => CommandResult | Promise<CommandResult>;
   onSnapshot: (snapshot: Snapshot, clockShift?: number) => void;
-  onMoveIntent: (playerId: string, targetX: number, targetY: number) => void;
   onTailSpill: (victimId: string) => void;
-  getSnapshot: () => Snapshot;
 }
 
-export function useSnakeSamuraiMultiplayer({ roomId, player, phaseRef, onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot }: Options) {
+const noBroadcast = (_payload?: unknown) => undefined;
+
+export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailSpill }: Options) {
   const [userId, setUserId] = useState<string>();
-  const [isHost, setIsHost] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
   const [registrationError, setRegistrationError] = useState('');
   const [onlinePlayers, setOnlinePlayers] = useState<Player[]>([]);
-  const channelRef = useRef<RealtimeChannel | null>(null);
-  const hostRef = useRef(false);
-  const callbacks = useRef({ onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot });
-  callbacks.current = { onCommand, onSnapshot, onMoveIntent, onTailSpill, getSnapshot };
+  const callbacks = useRef({ onSnapshot, onTailSpill });
+  callbacks.current = { onSnapshot, onTailSpill };
+  const mounted = useRef(false);
 
-  // Connect ONCE on mount. Do NOT re-run when player.name/color changes.
   useEffect(() => {
     let cancelled = false;
-    let channel: RealtimeChannel | null = null;
-
-    const connect = async () => {
-      try {
-        const id = getSharedDeviceId();
-        if (cancelled) return;
-        setUserId(id);
-
-        const control = await callSnakeSamuraiControl('GET', undefined, roomId);
-        if (!cancelled && control.ok) {
-          const shift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
-          if (control.phase === GamePhase.LOBBY) {
-            callbacks.current.onCommand('on', {
-              serverState: true,
-              lobbyEndsAt: control.lobbyEndsAt ? Date.parse(control.lobbyEndsAt) + shift : null,
-            });
-          } else if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
-            callbacks.current.onSnapshot({
-              ...control.snapshot,
-              phase: control.phase,
-              startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + shift : null,
-              endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + shift : null,
-            } as Snapshot, shift);
-            void registerSnakeSamuraiPlayer({ ...player, id, isSpectator: true }, roomId);
-          } else if (control.phase === GamePhase.OFF) {
-            callbacks.current.onCommand('off', { serverState: true });
-          }
+    mounted.current = true;
+    let firstClockShift: number | undefined;
+    let previous: Snapshot | undefined;
+    setOnlinePlayers([]);
+    const unsubscribe = subscribeHost(roomId, frame => {
+      if (cancelled) return;
+      if (firstClockShift === undefined) firstClockShift = Date.now() - frame.serverNow;
+      const canonical = frame.snapshot as unknown as Snapshot;
+      const snapshot: Snapshot = {
+        ...canonical,
+        startedAt: typeof canonical.startedAt === 'number' ? canonical.startedAt + firstClockShift : null,
+        endsAt: typeof canonical.endsAt === 'number' ? canonical.endsAt + firstClockShift : null,
+        lobbyEndsAt: typeof canonical.lobbyEndsAt === 'number' ? canonical.lobbyEndsAt + firstClockShift : null,
+      };
+      setOnlinePlayers(frame.players as Player[]);
+      callbacks.current.onSnapshot(snapshot, firstClockShift);
+      // A settlement consumes the mouth too. Only continuing, connected snakes
+      // in the same live round with no new completion can produce a spill view.
+      if (previous?.phase === GamePhase.PLAYING && canonical.phase === GamePhase.PLAYING
+        && previous.startedAt === canonical.startedAt) {
+        for (const [id, snake] of Object.entries(canonical.snakes || {})) {
+          const old = previous.snakes?.[id];
+          if (old?.connected && snake.connected && old.heldFoods.length > snake.heldFoods.length
+            && old.completionHistory.length === snake.completionHistory.length) callbacks.current.onTailSpill(id);
         }
-
-        channel = supabase.channel(`ransen:${roomId}`, {
-          config: { broadcast: { self: false, ack: true }, presence: { key: id } }
-        });
-
-        channel
-          .on('broadcast', { event: 'move_intent' }, ({ payload }) => {
-            if (payload?.playerId && typeof payload.targetX === 'number' && typeof payload.targetY === 'number') {
-              callbacks.current.onMoveIntent(payload.playerId, payload.targetX, payload.targetY);
-            }
-          })
-          .on('broadcast', { event: 'snapshot' }, ({ payload }) => {
-            if (payload?.snapshot) {
-              const shift = typeof payload.sentAt === 'number' ? Date.now() - payload.sentAt : 0;
-              callbacks.current.onSnapshot({
-                ...payload.snapshot,
-                startedAt: typeof payload.snapshot.startedAt === 'number' ? payload.snapshot.startedAt + shift : null,
-                endsAt: typeof payload.snapshot.endsAt === 'number' ? payload.snapshot.endsAt + shift : null,
-              }, shift);
-            }
-          })
-          .on('broadcast', { event: 'tail_spill' }, ({ payload }) => {
-            if (typeof payload?.victimId === 'string') callbacks.current.onTailSpill(payload.victimId);
-          })
-          .on('broadcast', { event: 'command' }, async ({ payload }) => {
-            const result = await callbacks.current.onCommand(String(payload.command), payload);
-            if (payload.commandId) await channel?.httpSend('command_result', { commandId: payload.commandId, ...result });
-          })
-          .on('broadcast', { event: 'request_snapshot' }, async () => {
-            if (hostRef.current) {
-              await channel?.send({ type: 'broadcast', event: 'snapshot', payload: { snapshot: callbacks.current.getSnapshot() } });
-            }
-          })
-          .on('presence', { event: 'sync' }, () => {
-            const state = channel?.presenceState() || {};
-            const active: Player[] = [];
-            const gameKeys: string[] = [];
-            Object.entries(state).forEach(([key, presences]: [string, any]) => {
-              presences.forEach((p: any) => {
-                if (p.role === 'game' && p.player) {
-                  active.push(p.player);
-                  gameKeys.push(key);
-                }
-              });
-            });
-            setOnlinePlayers(active);
-
-            // Host election: lowest key is host
-            const keys = [...new Set(gameKeys)].sort();
-            const amHost = keys[0] === id;
-            setIsHost(amHost);
-            hostRef.current = amHost;
-          })
-          .subscribe(async (status) => {
-            if (status === 'SUBSCRIBED') {
-              setConnection('online');
-              channel?.track({ player: { ...player, id, isSpectator: phaseRef.current !== GamePhase.LOBBY }, role: 'game', onlineAt: new Date().toISOString() });
-              if (phaseRef.current === GamePhase.LOBBY) {
-                const registration = await registerSnakeSamuraiPlayer({ ...player, id }, roomId);
-                setRegistrationError(registration.ok ? '' : registration.message || '无法登记本场玩家');
-              }
-              window.setTimeout(() => channel?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} }), 250);
-            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-              setConnection('error');
-            }
-          });
-
-        channelRef.current = channel;
-      } catch (err) {
-        console.error('Snake Samurai multiplayer connection failed', err);
-        setConnection('error');
       }
-    };
-
-    connect();
-
+      previous = canonical;
+    }, status => { if (!cancelled) setConnection(status); });
+    void getHostIdentity().then(identity => {
+      if (!cancelled) setUserId(identity.playerId);
+    }).catch(error => {
+      console.error('Snake guest session failed', error);
+      if (!cancelled) setConnection('error');
+    });
     return () => {
       cancelled = true;
-      if (channel) supabase.removeChannel(channel);
+      mounted.current = false;
+      unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]); // Only reconnect when roomId changes, NOT on player name/color changes
+  }, [roomId]);
 
-  // Update presence when player name/color changes (without reconnecting)
+  // Editing a profile never enrolls a spectator. Reconnect sends only profile.
   useEffect(() => {
-    if (channelRef.current && connection === 'online' && userId) {
-      channelRef.current.track({ player: { ...player, id: userId }, role: 'game', onlineAt: new Date().toISOString() });
-      if (phaseRef.current === GamePhase.LOBBY) void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId).then(result => setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家'));
-    }
-  }, [player.name, player.color, connection, userId, roomId, phaseRef]);
+    if (connection !== 'online' || !userId) return;
+    let cancelled = false;
+    void sendHostIntent(roomId, { type: 'profile', name: player.name, color: player.color })
+      .then(result => { if (!cancelled) setRegistrationError(result === 'ok' ? '' : '无法更新玩家资料'); });
+    return () => { cancelled = true; };
+  }, [roomId, connection, userId, player.name, player.color]);
 
-  useEffect(() => {
-    if (connection !== 'online' || !userId || phaseRef.current !== GamePhase.LOBBY) return;
-    const heartbeat = () => void registerSnakeSamuraiPlayer({ ...player, id: userId }, roomId).then(result => setRegistrationError(result.ok ? '' : result.message || '无法登记本场玩家'));
-    heartbeat();
-    const timer = window.setInterval(heartbeat, 5_000);
-    return () => window.clearInterval(timer);
-  }, [connection, userId, roomId, player.name, player.color, player.isSpectator, phaseRef]);
+  const joinMatch = useCallback(async (isSpectator: boolean) => {
+    const result = await sendHostIntent(roomId, { type: 'join', name: player.name, color: player.color, isSpectator });
+    if (mounted.current) setRegistrationError(result === 'ok' ? '' : '无法登记本场玩家');
+    return result;
+  }, [roomId, player.name, player.color]);
 
-  const sendMoveIntent = useCallback((targetX: number, targetY: number) => {
-    if (channelRef.current && connection === 'online') {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'move_intent',
-        payload: { playerId: userId || player.id, targetX, targetY }
-      });
-    }
-  }, [connection, userId, player.id]);
-
-  const broadcastSnapshot = useCallback((snapshot: Snapshot) => {
-    if (channelRef.current && connection === 'online' && hostRef.current) {
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'snapshot',
-        payload: { snapshot, sentAt: Date.now() }
-      });
-    }
-  }, [connection]);
-
-  const broadcastTailSpill = useCallback((victimId: string) => {
-    callbacks.current.onTailSpill(victimId);
-    if (channelRef.current && connection === 'online') {
-      channelRef.current.send({ type: 'broadcast', event: 'tail_spill', payload: { victimId, at: Date.now() } });
-    }
-  }, [connection]);
-
-  const requestSnapshot = useCallback(() => {
-    return channelRef.current?.send({ type: 'broadcast', event: 'request_snapshot', payload: {} });
-  }, []);
+  const sendMoveIntent = useCallback((targetX: number, targetY: number) =>
+    sendHostIntent(roomId, { type: 'input', targetX, targetY }), [roomId]);
+  const sendIntent = useCallback((body: Record<string, unknown>) => sendHostIntent(roomId, body), [roomId]);
+  const requestSnapshot = useCallback(() => sendHostIntent(roomId, { type: 'request_state' }), [roomId]);
+  const isJoined = onlinePlayers.some(member => member.id === userId && !member.isBot && !member.isSpectator);
 
   return {
-    userId,
-    isHost,
-    connection,
-    registrationError,
-    onlinePlayers,
-    requestSnapshot,
-    sendMoveIntent,
-    broadcastSnapshot,
-    broadcastTailSpill,
+    userId, isHost: false, isJoined, connection, registrationError, onlinePlayers,
+    joinMatch, sendIntent, requestSnapshot, sendMoveIntent,
+    // Legacy physics remains guarded off. Browser state is never published.
+    broadcastSnapshot: noBroadcast,
+    broadcastTailSpill: noBroadcast,
   };
 }

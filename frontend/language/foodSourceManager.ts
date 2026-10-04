@@ -1,4 +1,3 @@
-import { supabase } from '../supabase';
 import { LEXICON_DATA } from './lexiconData';
 import { Theme } from '../types';
 
@@ -45,6 +44,7 @@ export async function loadThemeGlyphPool(theme: Theme): Promise<FoodGlyphItem[]>
   // 2. Load from the shared Chofu-Ransen question bank. The bousai corpus is
   // stored in jec.ransen_questions with the Japanese level label "防災".
   try {
+    const { supabase } = await import('../supabase');
     let questionQuery = supabase
       .from('ransen_questions')
       .select('text, options')

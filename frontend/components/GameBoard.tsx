@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArenaBounds, CandidateSentence, CandidateWord, FoodState, Language, Player, SnakeState, Theme } from '../types';
 import { calculateCameraZoom } from '../game/snakeMovement';
+import { createSnakePresentation, findDisplayPlayerSnake, snakeDisplayWorldPoint } from '../game/snakePresentation';
 import { renderGame } from '../game/snakeRenderer';
 import { searchCandidates } from '../language/trieEngine';
 import { analyzeSentenceBuilding } from '../language/sentenceEngine';
@@ -62,6 +63,12 @@ export const GameBoard: React.FC<Props> = ({
   const clickEffectRef = useRef(clickEffect);
   clickEffectRef.current = clickEffect;
 
+  const latestPropsRef = useRef({ player, snakesRef, foodsRef, boundsRef, tailSpillEffect });
+  latestPropsRef.current = { player, snakesRef, foodsRef, boundsRef, tailSpillEffect };
+  const [presentation] = useState(createSnakePresentation);
+  const displaySnakesRef = useRef<Record<string, SnakeState>>({});
+  const cameraIdentityRef = useRef<string | null>(null);
+  const displayedSpillAtRef = useRef<number | null>(null);
   const cameraXRef = useRef(0);
   const cameraYRef = useRef(0);
   const cameraZoomRef = useRef(1.2);
@@ -70,15 +77,14 @@ export const GameBoard: React.FC<Props> = ({
   const [hudSnakes, setHudSnakes] = useState<Record<string, SnakeState>>({});
   useEffect(() => {
     const interval = setInterval(() => {
-      setHudSnakes({ ...snakesRef.current });
+      setHudSnakes({ ...latestPropsRef.current.snakesRef.current });
     }, 150);
     return () => clearInterval(interval);
   }, [snakesRef]);
 
   // Helper to dynamically get current local player snake (reads from live ref)
   const getMySnake = () => {
-    const all = snakesRef.current;
-    return all[`snake-${player.id}`] || Object.values(all).find(s => s.playerId === player.id);
+    return findDisplayPlayerSnake(latestPropsRef.current.snakesRef.current, latestPropsRef.current.player.id);
   };
 
   // Convert screen coordinates to world coordinates & trigger target move
@@ -87,12 +93,7 @@ export const GameBoard: React.FC<Props> = ({
     const currentMySnake = getMySnake();
     if (!canvas || !currentMySnake) return;
 
-    const cameraZoom = calculateCameraZoom(currentMySnake.totalLength);
-    const cameraX = currentMySnake.head.x;
-    const cameraY = currentMySnake.head.y;
-
-    const worldX = (touchX - canvas.width / 2) / cameraZoom + cameraX;
-    const worldY = (touchY - canvas.height / 2) / cameraZoom + cameraY;
+    const { x: worldX, y: worldY } = snakeDisplayWorldPoint(touchX, touchY, canvas.width, canvas.height, cameraZoomRef.current, { x: cameraXRef.current, y: cameraYRef.current });
 
     if (isInitialTap) {
       const heldFoodHit = currentMySnake.heldFoods.some(item => {
@@ -115,6 +116,7 @@ export const GameBoard: React.FC<Props> = ({
       setClickEffect({ x: worldX, y: worldY, time: Date.now() });
     }
 
+    presentation.input(latestPropsRef.current.player.id, { x: worldX, y: worldY }, Date.now());
     onPointerTarget(worldX, worldY);
   };
 
@@ -164,8 +166,16 @@ export const GameBoard: React.FC<Props> = ({
             canvas.height = height;
           }
 
-          const currentSnake = getMySnake();
-          const visibleBounds = boundsRef.current;
+          const latest = latestPropsRef.current;
+          if (latest.tailSpillEffect && displayedSpillAtRef.current !== latest.tailSpillEffect.at) {
+            displayedSpillAtRef.current = latest.tailSpillEffect.at;
+            presentation.reset(latest.tailSpillEffect.victimId);
+          }
+          presentation.observe(latest.snakesRef.current, latest.boundsRef.current, latest.player.id, Date.now());
+          const displayed = presentation.frame(latest.player.id, Date.now());
+          displaySnakesRef.current = displayed;
+          const currentSnake = findDisplayPlayerSnake(displayed, latest.player.id);
+          const visibleBounds = latest.boundsRef.current;
           const spectatorZoom = Math.min(
             width / Math.max(1, visibleBounds.maxX - visibleBounds.minX),
             height / Math.max(1, visibleBounds.maxY - visibleBounds.minY),
@@ -174,6 +184,10 @@ export const GameBoard: React.FC<Props> = ({
           const targetX = currentSnake ? currentSnake.head.x : (visibleBounds.minX + visibleBounds.maxX) / 2;
           const targetY = currentSnake ? currentSnake.head.y : (visibleBounds.minY + visibleBounds.maxY) / 2;
           
+          if (cameraIdentityRef.current !== (currentSnake?.id || 'spectator')) {
+            cameraIdentityRef.current = currentSnake?.id || 'spectator';
+            cameraXRef.current = targetX; cameraYRef.current = targetY; cameraZoomRef.current = targetZoom;
+          }
           // Smooth camera lerp (0.12 = smooth follow speed)
           const lerp = 0.12;
           cameraXRef.current += (targetX - cameraXRef.current) * lerp;
@@ -184,9 +198,9 @@ export const GameBoard: React.FC<Props> = ({
             ctx,
             width,
             height,
-            boundsRef.current,
-            snakesRef.current,
-            foodsRef.current,
+            latest.boundsRef.current,
+            displayed,
+            latest.foodsRef.current,
             currentSnake ? currentSnake.id : null,
             cameraZoomRef.current,
             clickEffectRef.current,
@@ -210,8 +224,9 @@ export const GameBoard: React.FC<Props> = ({
   const cameraX = cameraXRef.current;
   const cameraY = cameraYRef.current;
   const zoom = cameraZoomRef.current;
-  const headScreenX = mySnake ? (mySnake.head.x - cameraX) * zoom + window.innerWidth / 2 : window.innerWidth / 2;
-  const headScreenY = mySnake ? (mySnake.head.y - cameraY) * zoom + window.innerHeight / 2 : window.innerHeight / 2;
+  const displayMySnake = findDisplayPlayerSnake(displaySnakesRef.current, player.id) || mySnake;
+  const headScreenX = displayMySnake ? (displayMySnake.head.x - cameraX) * zoom + window.innerWidth / 2 : window.innerWidth / 2;
+  const headScreenY = displayMySnake ? (displayMySnake.head.y - cameraY) * zoom + window.innerHeight / 2 : window.innerHeight / 2;
 
   useEffect(() => {
     if (!tailSpillEffect || !mySnake || tailSpillEffect.victimId !== mySnake.id) return;

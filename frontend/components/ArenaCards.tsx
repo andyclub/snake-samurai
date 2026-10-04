@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { callRansenControl } from '../supabase';
+import { subscribeHost } from '../hostTransport';
 import { GamePhase } from '../types';
 
 interface Props {
@@ -13,16 +13,15 @@ type ArenaStatus = {
   arenaName?: string;
 };
 
-const ArenaCards: React.FC<Props> = ({ t, arenaName, active = false }) => {
+const ArenaCards: React.FC<Props> = ({ t, arenaName }) => {
   const isDisasterArena = new URLSearchParams(window.location.search).get('arena') === 'bousai-toyama';
-  const selectedPhase = active ? GamePhase.LOBBY : GamePhase.OFF;
   const [statuses, setStatuses] = useState<Record<'main' | 'bousai-toyama', ArenaStatus>>({
     main: {
-      phase: isDisasterArena ? undefined : selectedPhase,
+      phase: undefined,
       arenaName: isDisasterArena ? undefined : arenaName,
     },
     'bousai-toyama': {
-      phase: isDisasterArena ? selectedPhase : undefined,
+      phase: undefined,
     },
   });
 
@@ -39,44 +38,29 @@ const ArenaCards: React.FC<Props> = ({ t, arenaName, active = false }) => {
       ...current,
       [isDisasterArena ? 'bousai-toyama' : 'main']: {
         ...current[isDisasterArena ? 'bousai-toyama' : 'main'],
-        phase: selectedPhase,
         ...(isDisasterArena ? {} : { arenaName }),
       },
     }));
-  }, [arenaName, isDisasterArena, selectedPhase]);
+  }, [arenaName, isDisasterArena]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const refresh = async () => {
-      const [main, disaster] = await Promise.all([
-        callRansenControl('GET', undefined, 'main'),
-        callRansenControl('GET', undefined, 'bousai-toyama'),
-      ]);
-      if (cancelled) return;
-      setStatuses((current) => ({
-        main: {
-          phase: main.ok && main.phase ? main.phase : null,
-          arenaName: main.ok && main.arenaName ? main.arenaName : current.main.arenaName,
-        },
-        'bousai-toyama': {
-          phase: disaster.ok && disaster.phase ? disaster.phase : null,
-          arenaName: disaster.ok && disaster.arenaName ? disaster.arenaName : current['bousai-toyama'].arenaName,
-        },
+    const stops = (['main', 'bousai-toyama'] as const).map(roomId =>
+      subscribeHost(roomId, frame => {
+        const phase = frame.snapshot.phase;
+        const nextPhase = Object.values(GamePhase).includes(phase as GamePhase) ? phase as GamePhase : null;
+        setStatuses(current => ({
+          ...current,
+          [roomId]: {
+            phase: nextPhase,
+            arenaName: typeof frame.snapshot.arenaName === 'string' ? frame.snapshot.arenaName : current[roomId].arenaName,
+          },
+        }));
+      }, connection => {
+        if (connection === 'error') setStatuses(current => ({
+          ...current, [roomId]: { ...current[roomId], phase: null },
+        }));
       }));
-    };
-
-    void refresh();
-    const interval = window.setInterval(refresh, 5000);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === 'visible') void refresh();
-    };
-    document.addEventListener('visibilitychange', refreshWhenVisible);
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', refreshWhenVisible);
-    };
+    return () => stops.forEach(stop => stop());
   }, []);
 
   const statusLabel = (phase: ArenaStatus['phase']) => {

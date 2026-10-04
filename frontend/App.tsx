@@ -7,14 +7,17 @@ import TheaterScreen from './components/TheaterScreen';
 import GameOffScreen from './components/GameOffScreen';
 import { audio } from './audio';
 import { useSnakeSamuraiMultiplayer } from './useSnakeSamuraiMultiplayer';
-import { generateInitialFoods, generateSingleFood } from './game/foodGenerator';
+import { generateSingleFood } from './game/foodGenerator';
 import { updateSnakePosition } from './game/snakeMovement';
-import { checkAndResolveCollisions, triggerSelfTailSpill } from './game/collisionEngine';
+import { checkAndResolveCollisions } from './game/collisionEngine';
 import { settleSentence, settleWord } from './game/settleManager';
 import { updateBotAI } from './game/botAI';
 import { searchCandidates } from './language/trieEngine';
 import { analyzeSentenceBuilding } from './language/sentenceEngine';
-import { callSnakeSamuraiControl, claimSnakeSamuraiStart, persistSnakeSamuraiSnapshot, SNAKE_SAMURAI_ROOM_ID, validateSnakeComposition } from './supabase';
+
+const requestedSnakeRoom = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('arena') : null;
+const SNAKE_SAMURAI_ROOM_ID = requestedSnakeRoom === 'snake-theme' || requestedSnakeRoom === 'snake-disaster'
+  ? requestedSnakeRoom : 'snake-free';
 
 const INITIAL_BOUNDS: ArenaBounds = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
 const ROOM_MODE: ArenaMode = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? 'disaster' : SNAKE_SAMURAI_ROOM_ID === 'snake-theme' ? 'random' : 'free';
@@ -22,12 +25,6 @@ const ROOM_THEME: Theme = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? 'disaster
 const KATAKANA = ['アオイ', 'カゼ', 'ソラ', 'ナギ', 'リン', 'ユキ', 'ハル', 'レイ', 'ミオ', 'ルイ'];
 const randomKatakana = () => KATAKANA[Math.floor(Math.random() * KATAKANA.length)] + Math.floor(10 + Math.random() * 90);
 
-const INITIAL_BOTS = [
-  { id: 'bot-1', name: '侍カゼ (IQ25)', color: '#ef4444', level: 1 },
-  { id: 'bot-2', name: '忍者ソラ (IQ50)', color: '#10b981', level: 2 },
-  { id: 'bot-3', name: '武士ナギ (IQ75)', color: '#8b5cf6', level: 3 },
-  { id: 'bot-4', name: '将軍リン (IQ100)', color: '#f59e0b', level: 4 }
-];
 
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(getBrowserLanguage());
@@ -38,7 +35,6 @@ const App: React.FC = () => {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number>(120);
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
-  const [manualBots, setManualBots] = useState<Player[]>([]);
   const [themeAlert, setThemeAlert] = useState('');
   const [controlError, setControlError] = useState('');
   const [tailSpillEffect, setTailSpillEffect] = useState<{ victimId: string; at: number } | null>(null);
@@ -48,7 +44,8 @@ const App: React.FC = () => {
     id: `p-${Date.now()}`,
     name: localStorage.getItem('kazeabc_name') || randomKatakana(),
     color: localStorage.getItem('kazeabc_color') || '#3b82f6',
-    isBot: false
+    isBot: false,
+    isSpectator: true
   }));
 
   // Game State (React UI rendering)
@@ -91,259 +88,67 @@ const App: React.FC = () => {
     setPlayer(prev => ({ ...prev, name, color }));
   };
 
-  // Helper function to create player snake
-  const createPlayerSnake = useCallback((p: Player): SnakeState => {
-    const mySnakeId = `snake-${p.id}`;
-    const initialPath = Array.from({ length: 9 }, (_, i) => ({ x: -i * 14, y: 0 }));
-    return {
-      id: mySnakeId,
-      playerId: p.id,
-      nickname: p.name,
-      baseColor: p.color,
-      head: { x: 0, y: 0 },
-      direction: { x: 1, y: 0 },
-      target: { x: 100, y: 0 },
-      bodyPath: initialPath,
-      bodySegments: Array.from({ length: 3 }, (_, i) => ({
-        id: `base-seg-${i}`,
-        type: 'base',
-        lengthUnits: 1,
-        colorMode: 'player',
-        color: p.color
-      })),
-      // The three starting body segments are visual only; score begins at zero.
-      baseLength: 0,
-      earnedLength: 0,
-      totalLength: 0,
-      currentSpeed: 180,
-      heldFoods: [],
-      buildState: { status: 'INVALID', candidates: [], sentenceCandidates: [], version: 1 },
-      completionHistory: [],
-      isBot: false,
-      connected: true
-    };
-  }, []);
-
-  const applyCanonicalSnapshot = useCallback((snapshot: ArenaState, clockShift = 0) => {
-    if (!snapshot?.snakes || Object.keys(snapshot.snakes).length === 0) return false;
-    snakesRef.current = snapshot.snakes;
+  const applyCanonicalSnapshot = useCallback((snapshot: ArenaState & { lobbyEndsAt?: number | null }, clockShift = 0) => {
+    if (!snapshot || !Object.values(GamePhase).includes(snapshot.phase)) return false;
+    const previousPhase = phaseRef.current;
+    const sameLiveRound = previousPhase === GamePhase.PLAYING && snapshot.phase === GamePhase.PLAYING
+      && startedAtRef.current === snapshot.startedAt;
+    const oldSnake = snakesRef.current[`snake-${player.id}`];
+    const ownSnake = snapshot.snakes?.[`snake-${player.id}`];
+    if (sameLiveRound && oldSnake && ownSnake) {
+      if (ownSnake.heldFoods.length > oldSnake.heldFoods.length) audio.playPickup();
+      for (const record of ownSnake.completionHistory.slice(oldSnake.completionHistory.length)) {
+        if (record.type === 'word') audio.playWordCompleted();
+        else audio.playSentenceCompleted();
+      }
+    }
+    snakesRef.current = snapshot.snakes || {};
     foodsRef.current = snapshot.foods || {};
     boundsRef.current = snapshot.bounds || INITIAL_BOUNDS;
-    setSnakes({ ...snapshot.snakes });
-    setFoods({ ...(snapshot.foods || {}) });
-    setBounds(snapshot.bounds || INITIAL_BOUNDS);
+    setSnakes({ ...snakesRef.current });
+    setFoods({ ...foodsRef.current });
+    setBounds(boundsRef.current);
     if (snapshot.mode) setMode(snapshot.mode);
-    if (snapshot.theme) {
-      themeRef.current = snapshot.theme;
-      setTheme(snapshot.theme);
-    }
-    if (typeof snapshot.startedAt === 'number') {
-      serverClockShiftRef.current = clockShift;
-      startedAtRef.current = snapshot.startedAt;
-      setStartedAt(snapshot.startedAt);
-    }
-    setLobbyEndsAt(null);
-    if (snapshot.phase === GamePhase.PLAYING || snapshot.phase === GamePhase.THEATER) {
-      phaseRef.current = snapshot.phase;
-      setPhase(snapshot.phase);
+    if (snapshot.theme) { themeRef.current = snapshot.theme; setTheme(snapshot.theme); }
+    serverClockShiftRef.current = clockShift;
+    startedAtRef.current = typeof snapshot.startedAt === 'number' ? snapshot.startedAt : null;
+    setStartedAt(startedAtRef.current);
+    setLobbyEndsAt(typeof snapshot.lobbyEndsAt === 'number' ? snapshot.lobbyEndsAt : null);
+    phaseRef.current = snapshot.phase;
+    setPhase(snapshot.phase);
+    if (snapshot.phase === GamePhase.OFF) audio.setBGM('OFF');
+    else if (snapshot.phase === GamePhase.PLAYING && previousPhase !== GamePhase.PLAYING) {
+      audio.init(); battleMusicRef.current = 'BATTLE'; audio.setBGM('BATTLE');
     }
     setControlError('');
     return true;
-  }, []);
+  }, [player.id]);
 
-  // Multiplayer Hook
-  const { userId, isHost, connection, registrationError, onlinePlayers, sendMoveIntent, broadcastSnapshot, broadcastTailSpill, requestSnapshot } = useSnakeSamuraiMultiplayer({
+  // All authority and identity arrive through verified host frames.
+  const { userId, isHost, isJoined, connection, registrationError, onlinePlayers, joinMatch, sendIntent,
+    sendMoveIntent, broadcastSnapshot, broadcastTailSpill, requestSnapshot } = useSnakeSamuraiMultiplayer({
     roomId: SNAKE_SAMURAI_ROOM_ID,
     player,
-    phaseRef,
-    onCommand: async (cmd, payload) => {
-      if (cmd === 'on' || cmd === 'restart') {
-        if (payload.mode) setMode(payload.mode);
-        if (payload.theme) setTheme(payload.theme);
-        setLobbyEndsAt(typeof payload.lobbyEndsAt === 'number' ? payload.lobbyEndsAt : payload.serverState ? null : Date.now() + 25_000);
-        setManualBots([]);
-        phaseRef.current = GamePhase.LOBBY;
-        setPhase(GamePhase.LOBBY);
-      } else if (cmd === 'off') {
-        audio.setBGM('OFF');
-        phaseRef.current = GamePhase.OFF;
-        setPhase(GamePhase.OFF);
-      } else if (cmd === 'add_bot' && phaseRef.current === GamePhase.LOBBY && payload.bot?.id) {
-        const bot = { ...payload.bot, isBot: true } as Player;
-        setManualBots(previous => previous.some(item => item.id === bot.id) ? previous : [...previous, bot]);
-      } else if (cmd === 'replay' && phaseRef.current === GamePhase.THEATER) {
-        audio.setBGM('DEFEAT');
-      }
-      return { ok: true, message: 'Command executed' };
-    },
     onSnapshot: applyCanonicalSnapshot,
-    onMoveIntent: (playerId, targetX, targetY) => {
-      const sId = `snake-${playerId}`;
-      const s = snakesRef.current[sId];
-      if (s) {
-        snakesRef.current[sId] = { ...s, target: { x: targetX, y: targetY } };
-      }
-    },
-    onTailSpill: (victimId) => setTailSpillEffect({ victimId, at: Date.now() }),
-    getSnapshot: () => ({
-      id: SNAKE_SAMURAI_ROOM_ID,
-      mode,
-      theme,
-      phase: phaseRef.current,
-      startedAt: startedAtRef.current,
-      endsAt: startedAtRef.current ? startedAtRef.current + 120_000 : null,
-      bounds: boundsRef.current,
-      snakes: snakesRef.current,
-      foods: foodsRef.current,
-      leaderboard: [],
-      version: 1
-    })
+    onTailSpill: victimId => { setTailSpillEffect({ victimId, at: Date.now() }); audio.playTailSpill(); },
   });
 
   useEffect(() => {
     if (userId && player.id !== userId) setPlayer(previous => ({ ...previous, id: userId }));
   }, [userId, player.id]);
 
-  // Start Match with 3 head diameters starting snake for selected mode & theme
-  const startMatch = useCallback(async (selectedMode?: ArenaMode, selectedTheme?: Theme) => {
-    const activeMode = selectedMode || mode;
-    const activeTheme = selectedTheme || theme;
-
-    setMode(activeMode);
-    setTheme(activeTheme);
-    themeRef.current = activeTheme;
-
-    const allSnakes: Record<string, SnakeState> = {};
-    const humansById = new Map(onlinePlayers.filter(member => !member.isSpectator && !member.isBot).map(member => [member.id, member]));
-    humansById.set(player.id, player);
-    const humans = [...humansById.values()];
-    const automaticBots: Player[] = humans.length === 1
-      ? INITIAL_BOTS.slice(0, 3).map(bot => ({ id: bot.id, name: bot.name, color: bot.color, isBot: true, iq: bot.level }))
-      : [];
-    const entrants = [
-      ...humans.map(member => ({ player: member, origin: undefined as 'automatic' | 'manual' | undefined })),
-      ...automaticBots.map(member => ({ player: member, origin: 'automatic' as const })),
-      ...manualBots.map(member => ({ player: member, origin: 'manual' as const })),
-    ];
-
-    entrants.forEach(({ player: entrant, origin }, index) => {
-      const botId = `snake-${entrant.id}`;
-      const startX = (index + 1) * 200 * (index % 2 === 0 ? 1 : -1);
-      const startY = (index + 1) * 150 * (index % 2 === 0 ? -1 : 1);
-      const snake = createPlayerSnake(entrant);
-      allSnakes[botId] = {
-        ...snake,
-        id: botId, playerId: entrant.id, nickname: entrant.name, baseColor: entrant.color,
-        head: { x: startX, y: startY },
-        target: { x: startX + 50, y: startY + 50 },
-        bodyPath: Array.from({ length: 9 }, (_, i) => ({ x: startX - i * 14, y: startY })),
-        isBot: entrant.isBot,
-        botLevel: entrant.isBot ? Math.max(1, Math.min(4, Math.round((entrant.iq || 50) / 25))) : undefined,
-        botOrigin: origin,
-      };
-    });
-
-    const initFoods = generateInitialFoods(Object.keys(allSnakes).length, INITIAL_BOUNDS, undefined, activeTheme);
-
-    const proposedAt = Date.now();
-    const proposedSnapshot: ArenaState = {
-      id: SNAKE_SAMURAI_ROOM_ID, mode: activeMode, theme: activeTheme, phase: GamePhase.PLAYING,
-      startedAt: proposedAt, endsAt: proposedAt + 120_000, bounds: INITIAL_BOUNDS,
-      snakes: allSnakes, foods: initFoods, leaderboard: [], version: 1
-    };
-    const claim = await claimSnakeSamuraiStart(proposedSnapshot, SNAKE_SAMURAI_ROOM_ID);
-    if (!claim.ok || !claim.snapshot?.snakes) {
-      await requestSnapshot();
-      return false;
-    }
-    const clockShift = claim.serverNow ? Date.now() - Date.parse(claim.serverNow) : 0;
-    serverClockShiftRef.current = clockShift;
-    const claimedSnapshot = claim.snapshot as ArenaState;
-    const now = typeof claimedSnapshot.startedAt === 'number' ? claimedSnapshot.startedAt + clockShift : Date.now();
-    const claimedSnakes = claimedSnapshot.snakes;
-    const claimedFoods = claimedSnapshot.foods || initFoods;
-
-    // Populate Physics Engine Refs Directly
-    snakesRef.current = claimedSnakes;
-    foodsRef.current = claimedFoods;
-    boundsRef.current = INITIAL_BOUNDS;
-    phaseRef.current = GamePhase.PLAYING;
-    startedAtRef.current = now;
-
-    // Trigger React State Updates
-    setSnakes(claimedSnakes);
-    setFoods(claimedFoods);
-    setBounds(INITIAL_BOUNDS);
-    setStartedAt(now);
-    setPhase(GamePhase.PLAYING);
-    broadcastSnapshot({
-      id: SNAKE_SAMURAI_ROOM_ID, mode: activeMode, theme: activeTheme, phase: GamePhase.PLAYING,
-      startedAt: now, endsAt: now + 120_000, bounds: INITIAL_BOUNDS,
-      snakes: claimedSnakes, foods: claimedFoods, leaderboard: [], version: 1
-    });
-    audio.init();
-    battleMusicRef.current = 'BATTLE';
-    audio.setBGM('BATTLE');
-    return true;
-  }, [mode, theme, player, onlinePlayers, manualBots, createPlayerSnake, broadcastSnapshot, requestSnapshot]);
-
-  // The shared Ransen remote is the sole way to open a round. Every snake
-  // client follows the same cloud lobby deadline and starts locally together.
+  // A lobby deadline asks once for the canonical state. A missing deadline
+  // waits for push and never creates a polling or claim-start loop.
   useEffect(() => {
-    if (phase !== GamePhase.LOBBY) return;
-    let cancelled = false;
-    const syncLobby = async () => {
-      const control = await callSnakeSamuraiControl('GET');
-      if (cancelled) return;
-      if (!control.ok) {
-        setControlError(control.message || '场次服务连接失败，正在重试');
-        return;
-      }
-      setControlError(control.directorStatus === 'offline' && control.lobbyEndsAt && Date.parse(control.lobbyEndsAt) <= Date.now()
-        ? '上海主控离线，等待管理员从遥控器接管' : '');
-      if (control.phase === GamePhase.LOBBY && control.lobbyEndsAt) {
-        const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
-        serverClockShiftRef.current = clockShift;
-        const deadline = Date.parse(control.lobbyEndsAt) + clockShift;
-        if (Number.isFinite(deadline)) setLobbyEndsAt(deadline);
-      } else if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
-        const clockShift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
-        applyCanonicalSnapshot({
-          ...control.snapshot,
-          phase: control.phase,
-          startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + clockShift : null,
-          endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + clockShift : null,
-        } as ArenaState, clockShift);
-      }
-    };
-    void syncLobby();
-    const interval = window.setInterval(syncLobby, lobbyEndsAt && lobbyEndsAt - Date.now() < 8_000 ? 750 : 2_000);
-    return () => { cancelled = true; window.clearInterval(interval); };
-  }, [phase, lobbyEndsAt, applyCanonicalSnapshot]);
-
-  useEffect(() => {
-    if (phase !== GamePhase.LOBBY || !lobbyEndsAt) return;
-    const tick = () => {
-      if (Date.now() >= lobbyEndsAt && startAttemptForDeadlineRef.current !== lobbyEndsAt) {
-        startAttemptForDeadlineRef.current = lobbyEndsAt;
-        // The room director owns creation. Read its canonical snapshot directly;
-        // Realtime is an acceleration path, never the only way into a match.
-        void callSnakeSamuraiControl('GET').then(control => {
-          if ((control.phase === GamePhase.PLAYING || control.phase === GamePhase.THEATER) && control.snapshot?.snakes) {
-            const shift = control.serverNow ? Date.now() - Date.parse(control.serverNow) : 0;
-            applyCanonicalSnapshot({ ...control.snapshot, phase: control.phase,
-              startedAt: typeof control.snapshot.startedAt === 'number' ? control.snapshot.startedAt + shift : null,
-              endsAt: typeof control.snapshot.endsAt === 'number' ? control.snapshot.endsAt + shift : null } as ArenaState, shift);
-          } else {
-            startAttemptForDeadlineRef.current = null;
-          }
-        });
-      }
-    };
-    tick();
-    const interval = window.setInterval(tick, 250);
-    return () => window.clearInterval(interval);
-  }, [phase, lobbyEndsAt, applyCanonicalSnapshot]);
+    if (phase !== GamePhase.LOBBY || !Number.isFinite(lobbyEndsAt) || lobbyEndsAt === null) return;
+    const deadline = lobbyEndsAt;
+    const timer = window.setTimeout(() => {
+      if (startAttemptForDeadlineRef.current === deadline) return;
+      startAttemptForDeadlineRef.current = deadline;
+      void requestSnapshot();
+    }, Math.max(0, deadline - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [phase, lobbyEndsAt, requestSnapshot]);
 
   // All clients derive both the HUD timer and music stage from the same
   // server-normalized start time, independent of physics host election.
@@ -364,35 +169,6 @@ const App: React.FC = () => {
     const timer = window.setInterval(tick, 250);
     return () => window.clearInterval(timer);
   }, [phase, startedAt]);
-
-  useEffect(() => {
-    if (!isHost || phase !== GamePhase.PLAYING) return;
-    const publish = () => broadcastSnapshot({
-      id: SNAKE_SAMURAI_ROOM_ID, mode: mode, theme: themeRef.current, phase: GamePhase.PLAYING,
-      startedAt: startedAtRef.current, endsAt: startedAtRef.current ? startedAtRef.current + 120_000 : null,
-      bounds: boundsRef.current, snakes: snakesRef.current, foods: foodsRef.current, leaderboard: [], version: 1
-    });
-    publish();
-    const timer = window.setInterval(publish, 120);
-    return () => window.clearInterval(timer);
-  }, [isHost, phase, mode, broadcastSnapshot]);
-
-  useEffect(() => {
-    if (!isHost || phase !== GamePhase.PLAYING) return;
-    const persist = () => {
-      const localStartedAt = startedAtRef.current;
-      if (!localStartedAt) return;
-      void persistSnakeSamuraiSnapshot({
-        id: SNAKE_SAMURAI_ROOM_ID, mode, theme: themeRef.current, phase: GamePhase.PLAYING,
-        startedAt: localStartedAt - serverClockShiftRef.current,
-        endsAt: localStartedAt - serverClockShiftRef.current + 120_000,
-        bounds: boundsRef.current, snakes: snakesRef.current, foods: foodsRef.current,
-        leaderboard: [], version: 1,
-      }, SNAKE_SAMURAI_ROOM_ID);
-    };
-    const timer = window.setInterval(persist, 3_000);
-    return () => window.clearInterval(timer);
-  }, [isHost, phase, mode]);
 
   // Clean 60fps Game Loop using mutable refs
   useEffect(() => {
@@ -430,7 +206,6 @@ const App: React.FC = () => {
             leaderboard: [], version: 1,
           };
           broadcastSnapshot(finalSnapshot);
-          void persistSnakeSamuraiSnapshot(finalSnapshot, SNAKE_SAMURAI_ROOM_ID);
           phaseRef.current = GamePhase.THEATER;
           setPhase(GamePhase.THEATER);
           audio.playVictory();
@@ -537,7 +312,7 @@ const App: React.FC = () => {
 
     animationFrameId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationFrameId);
-  }, [phase, player, createPlayerSnake, isHost, mode, broadcastSnapshot, broadcastTailSpill]);
+  }, [phase, player, isHost, mode, broadcastSnapshot, broadcastTailSpill]);
 
   // Note: GameBoard reads directly from snakesRef/foodsRef/boundsRef for 60fps rendering
   // and manages its own 150ms HUD sync internally.
@@ -553,91 +328,25 @@ const App: React.FC = () => {
     }
   };
 
-  // Settle Word (WORD_READY)
+  // Candidates shown by the UI identify only an index. The host recomputes
+  // held-food candidates and owns all language validation, score and spills.
   const handleSettleWord = (candidate: CandidateWord) => {
-    const mySnakeId = `snake-${player.id}`;
-    const mySnake = snakesRef.current[mySnakeId];
-    if (!mySnake) return;
-
-    if (SNAKE_SAMURAI_ROOM_ID === 'snake-theme' && !candidate.themeMatch) {
-      setThemeAlert(`当前主题：${translations[lang]?.[`theme.${themeRef.current}`] || themeRef.current}`);
-      window.setTimeout(() => setThemeAlert(''), 1_500);
-      const failed = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
-      snakesRef.current = failed.updatedSnakes; foodsRef.current = failed.updatedFoods;
-      setSnakes({ ...snakesRef.current }); setFoods({ ...foodsRef.current }); audio.playTailSpill();
-      return;
-    }
-    if (SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' && !candidate.id.startsWith('verified-')) {
-      const surface = mySnake.heldFoods.map(item => item.glyph).join('');
-      void validateSnakeComposition(surface, 'disaster', SNAKE_SAMURAI_ROOM_ID).then(validation => {
-        if (validation.ok && validation.valid) handleSettleWord({ ...candidate, id: `verified-${Date.now()}`, canonical: validation.canonical || surface, themeMatch: true });
-        else {
-          const failed = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
-          snakesRef.current = failed.updatedSnakes; foodsRef.current = failed.updatedFoods;
-          setSnakes({ ...snakesRef.current }); setFoods({ ...foodsRef.current }); audio.playTailSpill();
-        }
-      });
-      return;
-    }
-
-    const settled = settleWord(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
-    snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
-    foodsRef.current = settled.updatedFoods;
-    setSnakes({ ...snakesRef.current });
-    setFoods({ ...foodsRef.current });
-    audio.playWordCompleted();
+    const snake = snakesRef.current[`snake-${player.id}`];
+    if (!snake) return;
+    const candidateIndex = searchCandidates(snake.heldFoods, themeRef.current).candidates.findIndex(item => item.id === candidate.id);
+    if (candidateIndex >= 0) void sendIntent({ type: 'settle_word', candidateIndex });
   };
-
-  // Settle Sentence (SENTENCE_READY)
   const handleSettleSentence = (candidate: CandidateSentence) => {
-    const mySnakeId = `snake-${player.id}`;
-    const mySnake = snakesRef.current[mySnakeId];
-    if (!mySnake) return;
-
-    const settled = settleSentence(mySnake, candidate, foodsRef.current, boundsRef.current, themeRef.current);
-    snakesRef.current = { ...snakesRef.current, [mySnakeId]: settled.updatedSnake };
-    foodsRef.current = settled.updatedFoods;
-    setSnakes({ ...snakesRef.current });
-    setFoods({ ...foodsRef.current });
-    audio.playSentenceCompleted();
+    const snake = snakesRef.current[`snake-${player.id}`];
+    if (!snake) return;
+    const candidateIndex = analyzeSentenceBuilding(snake.heldFoods, themeRef.current).candidates.findIndex(item => item.id === candidate.id);
+    if (candidateIndex >= 0) void sendIntent({ type: 'settle_sentence', candidateIndex });
   };
-
-  // Abandon / Spill Tail
-  const spillOwnTail = () => {
-    const mySnakeId = `snake-${player.id}`;
-    const res = triggerSelfTailSpill(mySnakeId, snakesRef.current, foodsRef.current, boundsRef.current);
-    snakesRef.current = res.updatedSnakes;
-    foodsRef.current = res.updatedFoods;
-    setSnakes({ ...snakesRef.current });
-    setFoods({ ...foodsRef.current });
-    broadcastTailSpill(mySnakeId);
-  };
-
-  const handleComposeHeldFoods = async () => {
-    const mySnakeId = `snake-${player.id}`;
-    const mySnake = snakesRef.current[mySnakeId];
-    if (!mySnake || mySnake.heldFoods.length === 0) return;
-    const sentence = analyzeSentenceBuilding(mySnake.heldFoods, themeRef.current).candidates[0];
-    if (sentence) { handleSettleSentence(sentence); return; }
-    const local = SNAKE_SAMURAI_ROOM_ID === 'snake-disaster' ? undefined : searchCandidates(mySnake.heldFoods, themeRef.current).candidates[0];
-    if (local) { handleSettleWord(local); return; }
-    if (mySnake.heldFoods.length < 2) { spillOwnTail(); audio.playTailSpill(); return; }
-    const surface = mySnake.heldFoods.map(item => item.glyph).join('');
-    const validation = await validateSnakeComposition(surface, themeRef.current, SNAKE_SAMURAI_ROOM_ID);
-    if (validation.ok && validation.valid) {
-      handleSettleWord({ id: `verified-${Date.now()}`, canonical: validation.canonical || surface, reading: validation.canonical || surface, readingLength: Array.from(surface).length, themeMatch: true });
-      return;
-    }
-    if (validation.reason === 'theme_mismatch') {
-      setThemeAlert(`当前主题：${translations[lang]?.[`theme.${themeRef.current}`] || themeRef.current}`);
-      window.setTimeout(() => setThemeAlert(''), 1_500);
-    }
-    spillOwnTail();
-    audio.playTailSpill();
-  };
+  const spillOwnTail = () => { void sendIntent({ type: 'spill_tail' }); };
+  const handleComposeHeldFoods = () => { void sendIntent({ type: 'compose' }); };
 
   const arenaState: ArenaState = {
-    id: 'main',
+    id: SNAKE_SAMURAI_ROOM_ID,
     mode,
     theme,
     phase,
@@ -662,7 +371,9 @@ const App: React.FC = () => {
       {phase === GamePhase.LOBBY && (
         <LobbyScreen
           player={player}
-          players={[...onlinePlayers, ...manualBots]}
+          players={onlinePlayers}
+          isJoined={isJoined}
+          onJoinChange={isSpectator => { void joinMatch(isSpectator); }}
           selectedMode={mode}
           selectedTheme={theme}
           onUpdatePlayer={handleUpdatePlayer}
@@ -689,7 +400,7 @@ const App: React.FC = () => {
           onSettleWord={handleSettleWord}
           onSettleSentence={handleSettleSentence}
           onComposeHeldFoods={handleComposeHeldFoods}
-          onSpillTail={() => { spillOwnTail(); audio.playTailSpill(); }}
+          onSpillTail={spillOwnTail}
           tailSpillEffect={tailSpillEffect}
           t={(k) => translations[lang]?.[k] || k}
         />
@@ -699,11 +410,7 @@ const App: React.FC = () => {
         <TheaterScreen
           arenaState={arenaState}
           player={player}
-          onRestart={() => {
-            setLobbyEndsAt(null);
-            phaseRef.current = GamePhase.LOBBY;
-            setPhase(GamePhase.LOBBY);
-          }}
+          onRestart={() => { void joinMatch(true); void requestSnapshot(); }}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}

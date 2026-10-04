@@ -7,8 +7,16 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/"
     }
-  ]
+  ],
+  "regions": [
+    "hnd1"
+  ],
+  "functions": {
+    "api/game-ws.js": {
+      "maxDuration": 300
+    }
+  }
 }

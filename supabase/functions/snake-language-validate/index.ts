@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.110.5";
+import { withEdgeUsage } from "../_shared/game-usage.ts";
 
 const allowedOrigins = new Set(["https://h.kazeabc.com", "https://g.kazeabc.com", "http://localhost:5173", "http://localhost:3000"]);
 const headersFor = (origin: string | null) => ({
@@ -19,13 +20,13 @@ const THEME_TERMS: Record<string, string[]> = {
   disaster: ["防災", "災害", "避難", "地震", "津波", "火災", "安全", "備蓄", "警報"],
 };
 
-const fetchJson = async (url: string) => {
-  const response = await fetch(url, { headers: { "User-Agent": "KazeABC-Snake/1.0" }, signal: AbortSignal.timeout(4_500) });
+const fetchJson = async (url: string, fetchImpl: typeof fetch) => {
+  const response = await fetchImpl(url, { headers: { "User-Agent": "KazeABC-Snake/1.0" }, signal: AbortSignal.timeout(4_500) });
   if (!response.ok) throw new Error(`upstream ${response.status}`);
   return response.json();
 };
 
-Deno.serve(async req => {
+Deno.serve(withEdgeUsage(async (req, usage) => {
   const origin = req.headers.get("origin");
   const headers = headersFor(origin);
   if (req.method === "OPTIONS") return new Response("ok", { headers });
@@ -47,7 +48,7 @@ Deno.serve(async req => {
     if (playlistId === "snake-disaster") {
       const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
       const secretKey = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-      const admin = createClient(Deno.env.get("SUPABASE_URL")!, secretKey!, { db: { schema: "jec" } });
+      const admin = createClient(Deno.env.get("SUPABASE_URL")!, secretKey!, { db: { schema: "jec" }, global: { fetch: usage.fetch } });
       const { data, error } = await admin.from("ransen_questions").select("id,text,options").eq("active", true).eq("category", "disaster").eq("level", "防災");
       if (error) throw error;
       const needle = normalize(text);
@@ -59,12 +60,12 @@ Deno.serve(async req => {
       return new Response(JSON.stringify(value), { headers });
     }
 
-    const search = await fetchJson(`https://ja.wiktionary.org/w/api.php?action=query&format=json&origin=*&prop=revisions&rvprop=content&rvslots=main&titles=${encodeURIComponent(text)}`);
+    const search = await fetchJson(`https://ja.wiktionary.org/w/api.php?action=query&format=json&origin=*&prop=revisions&rvprop=content&rvslots=main&titles=${encodeURIComponent(text)}`, usage.fetch);
     const pages = Object.values(search?.query?.pages || {}) as any[];
     const wiktionaryValid = pages.some(page => !page.missing && String(page?.revisions?.[0]?.slots?.main?.["*"] || "").includes("{{ja"));
     let exampleValid = false;
     if (!wiktionaryValid) {
-      const examples = await fetchJson(`https://api.tatoeba.org/v1/sentences?lang=jpn&q=${encodeURIComponent(text)}&sort=relevance&is_unapproved=no&is_orphan=no&trans%3Acount=!0&limit=5`);
+      const examples = await fetchJson(`https://api.tatoeba.org/v1/sentences?lang=jpn&q=${encodeURIComponent(text)}&sort=relevance&is_unapproved=no&is_orphan=no&trans%3Acount=!0&limit=5`, usage.fetch);
       exampleValid = (examples?.data || []).some((item: any) => normalize(String(item.text || "")).includes(normalize(text)));
     }
     if (!wiktionaryValid && !exampleValid) {
@@ -82,4 +83,4 @@ Deno.serve(async req => {
     console.error("snake-language-validate", error);
     return new Response(JSON.stringify({ ok: false, valid: false, reason: "validation_unavailable" }), { status: 503, headers });
   }
-});
+}));

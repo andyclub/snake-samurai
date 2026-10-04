@@ -9,6 +9,8 @@ import SnakeFaqModal from './SnakeFaqModal';
 interface Props {
   player: Player;
   players: Player[];
+  isJoined: boolean;
+  onJoinChange: (isSpectator: boolean) => void;
   selectedMode: ArenaMode;
   selectedTheme: Theme;
   onUpdatePlayer: (name: string, color: string) => void;
@@ -30,6 +32,8 @@ const QR_IMAGE_URL = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&d
 export const LobbyScreen: React.FC<Props> = ({
   player,
   players,
+  isJoined,
+  onJoinChange,
   selectedMode,
   selectedTheme,
   onUpdatePlayer,
@@ -49,9 +53,15 @@ export const LobbyScreen: React.FC<Props> = ({
   const secondsLeft = lobbyEndsAt ? Math.max(0, Math.ceil((lobbyEndsAt - now) / 1000)) : null;
 
   React.useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    if (typeof lobbyEndsAt !== 'number' || !Number.isFinite(lobbyEndsAt)) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (current >= lobbyEndsAt) window.clearInterval(timer);
+    }, 250);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [lobbyEndsAt]);
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
@@ -206,8 +216,12 @@ export const LobbyScreen: React.FC<Props> = ({
             <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : '准备中'}</div>
           </div>
           <div className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-center text-sm font-black text-cyan-100">
-            {connectionError || (lobbyEndsAt ? `游戏将在 ${secondsLeft} 秒后开始` : '正在等待下一场游戏')}
+            {connectionError || (isJoined ? (lobbyEndsAt ? `游戏将在 ${secondsLeft} 秒后开始` : '已参加本局 · 等待开始') : '正在旁观 · 点击参加本局')}
           </div>
+          <button type="button" onClick={() => onJoinChange(isJoined)}
+            className="touch-manipulation shrink-0 rounded-2xl border border-cyan-300/40 bg-cyan-500 px-5 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-400 active:scale-95">
+            {isJoined ? '退出本局 · 旁观' : '参加本局'}
+          </button>
         </div>
       </footer>
 
