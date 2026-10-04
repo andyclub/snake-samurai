@@ -73,7 +73,16 @@ function createGameHttp({ primaryUrl, fallbackUrl, relayKey, fallbackRelayKey, c
       upstream.on('timeout',()=>upstream.destroy(new Error('Host timed out')));
       upstream.on('error',()=>{recordUpstream(false);if(!res.writableEnded)fail(503,'HOST_UNAVAILABLE');});
       req.on('aborted',()=>upstream.destroy());
-      upstream.end(body);
+      await new Promise(resolve => {
+        const done = () => {
+          res.removeListener('finish', done);
+          res.removeListener('close', done);
+          resolve();
+        };
+        res.once('finish', done);
+        res.once('close', done);
+        upstream.end(body);
+      });
     } catch {if(!res.writableEnded)fail(400,'INVALID_REQUEST');}
   });
   return server;

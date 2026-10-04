@@ -113,3 +113,86 @@ test('meter separates route GET from upstream POST payload, status failures and 
     assert.equal(JSON.stringify(samples).includes('unit.invalid'), false);
   } finally { await close(relay); if (primary.listening) await close(primary); }
 });
+
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes,no) => { resolve=yes;reject=no; });
+  return {promise,resolve,reject};
+}
+function trackRequestLifetime(server) {
+  const original = server.listeners('request')[0];
+  const done = deferred(), entered = deferred();
+  const state = {resolved:false,finished:false,closed:false};
+  server.removeListener('request',original);
+  server.on('request',(req,res) => {
+    res.once('finish',()=>{state.finished=true;});
+    res.once('close',()=>{state.closed=true;});
+    // Exercise the actual async NodeServer entrypoint, rather than waiting
+    // only for the HTTP client (which cannot detect an early handler return).
+    const returned = original(req,res);
+    assert.equal(typeof returned?.then,'function');
+    entered.resolve();
+    returned.then(()=>{state.resolved=true;done.resolve();},done.reject);
+  });
+  return {state,done:done.promise,entered:entered.promise};
+}
+function delayedUpstream() {
+  const received = deferred(), release = deferred();
+  const server = http.createServer((req,res) => {
+    req.resume();
+    req.on('end',async()=> {
+      received.resolve();
+      await release.promise;
+      res.writeHead(200,{'content-type':'application/json'});
+      res.end(JSON.stringify({ok:true,delayed:true}));
+    });
+  });
+  return {server,received:received.promise,release:release.resolve};
+}
+const localRelay = primaryUrl => gateway.createGameHttp({
+  primaryUrl,relayKey:'test-only-relay',supabaseUrl:'https://unit.invalid',
+  publishableKey:'test-only-public',allowLocalUpstream:true,
+  fetchImpl:async()=>new Response(JSON.stringify({ok:true,hostMode:'shanghai'})),
+});
+test('actual async request listener remains pending until delayed upstream response finishes',{timeout:5000},async()=>{
+  const upstream=delayedUpstream(),primaryUrl=await listen(upstream.server);
+  const relay=localRelay(primaryUrl),lifetime=trackRequestLifetime(relay),url=await listen(relay);
+  const response=fetch(url+'/api/game-session',{method:'POST',body:'{}'}).then(async res=>({status:res.status,body:await res.json()}));
+  try {
+    await upstream.received;
+    await delay(25);
+    assert.equal(lifetime.state.finished,false);
+    assert.equal(lifetime.state.resolved,false,'Handler must cover upstream callbacks, not resolve after upstream.end');
+    upstream.release();
+    assert.deepEqual(await response,{status:200,body:{ok:true,delayed:true}});
+    await lifetime.done;
+    assert.equal(lifetime.state.finished,true,'Only response completion may resolve the handler');
+    assert.equal(lifetime.state.resolved,true);
+  } finally {
+    upstream.release();await response.catch(()=>{});
+    relay.closeAllConnections();upstream.server.closeAllConnections();
+    await close(relay);await close(upstream.server);
+  }
+});
+test('actual async request listener settles when client disconnects before delayed response',{timeout:5000},async()=>{
+  const upstream=delayedUpstream(),primaryUrl=await listen(upstream.server);
+  const relay=localRelay(primaryUrl),lifetime=trackRequestLifetime(relay),url=await listen(relay);
+  const request=http.request(url+'/api/game-session',{method:'POST',headers:{'content-length':2}});
+  request.on('error',()=>{});
+  request.end('{}');
+  try {
+    await upstream.received;
+    await delay(25);
+    assert.equal(lifetime.state.resolved,false,'Disconnect test must begin with a live pending handler');
+    request.destroy();
+    await Promise.race([lifetime.done,delay(1000).then(()=>{throw new Error('Response close did not settle handler');})]);
+    assert.equal(lifetime.state.closed,true);
+    assert.equal(lifetime.state.finished,false);
+    assert.equal(lifetime.state.resolved,true);
+  } finally {
+    request.destroy();upstream.release();
+    relay.closeAllConnections();upstream.server.closeAllConnections();
+    await close(relay);await close(upstream.server);
+  }
+});
