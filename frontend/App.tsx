@@ -30,6 +30,7 @@ const randomKatakana = () => KATAKANA[Math.floor(Math.random() * KATAKANA.length
 const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(getBrowserLanguage());
   const [phase, setPhase] = useState<GamePhase>(GamePhase.LOBBY);
+  const [showLobbyFromResults, setShowLobbyFromResults] = useState(false);
   const [mode, setMode] = useState<ArenaMode>(ROOM_MODE);
   const [theme, setTheme] = useState<Theme>(ROOM_THEME);
   const [lobbyEndsAt, setLobbyEndsAt] = useState<number | null>(null);
@@ -65,6 +66,9 @@ const App: React.FC = () => {
   const serverClockShiftRef = useRef(0);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => {
+    if (phase !== GamePhase.THEATER) setShowLobbyFromResults(false);
+  }, [phase]);
   useEffect(() => { startedAtRef.current = startedAt; }, [startedAt]);
   useEffect(() => { themeRef.current = theme; }, [theme]);
 
@@ -370,7 +374,7 @@ const App: React.FC = () => {
       {phase === GamePhase.OFF && (
         <GameOffScreen t={(k) => translations[lang]?.[k] || k} arenaName="聴風・侍蛇" gameUrl="https://h.kazeabc.com" />
       )}
-      {phase === GamePhase.LOBBY && (
+      {(phase === GamePhase.LOBBY || phase === GamePhase.THEATER && showLobbyFromResults) && (
         <LobbyScreen
           player={player}
           players={onlinePlayers}
@@ -409,11 +413,11 @@ const App: React.FC = () => {
         />
       )}
 
-      {phase === GamePhase.THEATER && (
+      {phase === GamePhase.THEATER && !showLobbyFromResults && (
         <TheaterScreen
           arenaState={arenaState}
           player={player}
-          onRestart={() => { void joinMatch(true); void requestSnapshot(); }}
+          onRestart={() => setShowLobbyFromResults(true)}
           t={(k) => translations[lang]?.[k] || k}
         />
       )}
