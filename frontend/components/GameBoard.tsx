@@ -265,7 +265,7 @@ export const GameBoard: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         className={`w-full h-full touch-none ${mySnake ? 'cursor-crosshair' : 'cursor-default'}`}
       />
-      {!mySnake && <div className="pointer-events-none absolute left-1/2 top-[max(5rem,calc(env(safe-area-inset-top)+4rem))] z-30 -translate-x-1/2 rounded-full border border-violet-300/40 bg-violet-500/20 px-4 py-2 text-sm font-black text-violet-100 backdrop-blur-md">👁 全地图旁观 · 等待下一场参赛</div>}
+      {!mySnake && <div className="pointer-events-none absolute left-1/2 top-[max(5rem,calc(env(safe-area-inset-top)+4rem))] z-30 -translate-x-1/2 rounded-full border border-violet-300/40 bg-violet-500/20 px-4 py-2 text-sm font-black text-violet-100 backdrop-blur-md">👁 {t('game.waitingSpectator')}</div>}
       {tailBurst && <div key={tailBurst.key} className="pointer-events-none fixed z-[80]" style={{ left: tailBurst.x, top: tailBurst.y }}>
         {Array.from({ length: 12 }, (_, index) => {
           const angle = (Math.PI * 2 * index) / 12;
@@ -276,7 +276,7 @@ export const GameBoard: React.FC<Props> = ({
             backgroundColor: ['#38bdf8','#facc15','#fb7185','#a78bfa'][index % 4],
           } as React.CSSProperties} />;
         })}
-        <b className="tail-burst-core">踩尾！</b>
+        <b className="tail-burst-core">{t('game.tailHit')}</b>
       </div>}
       <style>{`
         .tail-burst-particle{position:absolute;left:-7px;top:-7px;width:14px;height:14px;border:2px solid white;border-radius:999px;box-shadow:0 0 14px currentColor;animation:tail-burst-fly .85s cubic-bezier(.12,.65,.25,1) forwards}
@@ -319,7 +319,7 @@ export const GameBoard: React.FC<Props> = ({
             type="button"
             onClick={() => setShowQRModal(true)}
             className="touch-manipulation p-2 sm:p-2.5 bg-slate-900/90 border border-white/10 hover:border-cyan-400 backdrop-blur-md rounded-2xl text-cyan-400 shadow-xl transition-all active:scale-95"
-            title="邀请二维码"
+            title={t('qr.title')}
           >
             <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -410,14 +410,14 @@ export const GameBoard: React.FC<Props> = ({
         <button type="button" onClick={onComposeHeldFoods}
           className="fixed z-40 -translate-x-1/2 -translate-y-full animate-pulse rounded-2xl border-2 border-amber-100 bg-amber-400 px-5 py-3 font-black text-slate-950 shadow-2xl"
           style={{ left: `${headScreenX}px`, top: `${headScreenY - 60 * zoom}px` }}>
-          {mode === 'disaster' ? '防灾题库中查找组合' : '点击尝试合成为单词'}
+          {mode === 'disaster' ? t('game.composeDisaster') : t('game.composeTry')}
         </button>
       )}
 
       {/* Compact Mobile Leaderboard Panel (Displays ONLY color dot, 1st char of name, earnedLength) */}
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-2 sm:left-4 bg-slate-900/80 border border-white/10 backdrop-blur-md rounded-2xl p-1.5 sm:p-3 shadow-2xl z-20 max-w-[110px] sm:max-w-[200px] pointer-events-none">
         <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-black text-amber-400 border-b border-white/10 pb-1 mb-1.5">
-          <Trophy className="w-3 h-3 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">{t('leaderboard.title')}</span><span className="sm:hidden">榜</span>
+          <Trophy className="w-3 h-3 sm:w-4 sm:h-4" /> <span className="hidden sm:inline">{t('leaderboard.title')}</span><span className="sm:hidden">{t('leaderboard.short')}</span>
         </div>
         <div className="space-y-1 text-[10px] sm:text-[11px] font-bold">
           {leaderboard.slice(0, 5).map((s, idx) => (

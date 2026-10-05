@@ -18,6 +18,7 @@ const noBroadcast = (_payload?: unknown) => undefined;
 
 export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailSpill }: Options) {
   const [userId, setUserId] = useState<string>();
+  const [hasSnapshot, setHasSnapshot] = useState(false);
   const [connection, setConnection] = useState<Connection>('connecting');
   const [connectionFailure, setConnectionFailure] = useState<HostConnectionFailure | null>(null);
   const [registrationError, setRegistrationError] = useState('');
@@ -28,6 +29,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
 
   useEffect(() => {
     let cancelled = false;
+    setHasSnapshot(false);
     mounted.current = true;
     let firstClockShift: number | undefined;
     let previous: Snapshot | undefined;
@@ -43,6 +45,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
         lobbyEndsAt: typeof canonical.lobbyEndsAt === 'number' ? canonical.lobbyEndsAt + firstClockShift : null,
       };
       setOnlinePlayers(frame.players as Player[]);
+      setHasSnapshot(true);
       callbacks.current.onSnapshot(snapshot, firstClockShift);
       // A settlement consumes the mouth too. Only continuing, connected snakes
       // in the same live round with no new completion can produce a spill view.
@@ -83,7 +86,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
     if (connection !== 'online' || !userId) return;
     let cancelled = false;
     void sendHostIntent(roomId, { type: 'profile', name: player.name, color: player.color })
-      .then(result => { if (!cancelled) setRegistrationError(result === 'ok' ? '' : '无法更新玩家资料'); });
+      .then(result => { if (!cancelled) setRegistrationError(result === 'ok' ? '' : 'error.profileUpdate'); });
     return () => { cancelled = true; };
   }, [roomId, connection, userId, player.name, player.color]);
 
@@ -91,7 +94,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
 
   const joinMatch = useCallback(async (isSpectator: boolean) => {
     const result = await sendHostIntent(roomId, { type: 'join', name: player.name, color: player.color, isSpectator });
-    if (mounted.current) setRegistrationError(result === 'ok' ? '' : '无法登记本场玩家');
+    if (mounted.current) setRegistrationError(result === 'ok' ? '' : 'error.joinRound');
     return result;
   }, [roomId, player.name, player.color]);
 
@@ -102,7 +105,7 @@ export function useSnakeSamuraiMultiplayer({ roomId, player, onSnapshot, onTailS
   const isJoined = onlinePlayers.some(member => member.id === userId && !member.isBot && !member.isSpectator);
 
   return {
-    userId, isHost: false, isJoined, connection, connectionFailure, retryConnection, registrationError, onlinePlayers,
+    userId, hasSnapshot, isHost: false, isJoined, connection, connectionFailure, retryConnection, registrationError, onlinePlayers,
     joinMatch, sendIntent, requestSnapshot, sendMoveIntent,
     // Legacy physics remains guarded off. Browser state is never published.
     broadcastSnapshot: noBroadcast,

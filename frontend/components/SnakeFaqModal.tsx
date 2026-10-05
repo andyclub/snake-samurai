@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { ArenaBounds, FoodState, HeldFood, Language, SnakeState } from '../types';
 import { renderGame } from '../game/snakeRenderer';
+import { translations } from '../i18n';
 
 const labels: Record<Language, { title:string; bubble:string; bubbleHint:string; self:string; selfHint:string; tail:string; tailHint:string; close:string }> = {
   'zh-CN': { title:'侍蛇操作动画', bubble:'气泡组词', bubbleHint:'衔到完整单词后，点击头顶气泡完成组合。', self:'自行组词', selfHint:'三个以上汉字可点击提示，查找真实且自然的组合。', tail:'踩蛇尾', tailHint:'碰到发亮的蛇尾，嘴里的食材会全部散落。', close:'关闭' },
@@ -78,9 +79,10 @@ const SnakeDemoCanvas: React.FC<{ kind: DemoKind; color: string; name: string }>
   </div>;
 };
 
-interface Props { lang: Language; playerColor: string; playerName: string; onClose: () => void }
-const SnakeFaqModal: React.FC<Props> = ({ lang, playerColor, playerName, onClose }) => {
+interface Props { homeHelp?: boolean; homeHelpItems?: string[]; homeHelpT?: (key: string) => string; lang: Language; playerColor: string; playerName: string; onClose: () => void }
+const SnakeFaqModal: React.FC<Props> = ({ lang, playerColor, playerName, onClose, homeHelp = false, homeHelpItems, homeHelpT }) => {
   const t = labels[lang];
+  const help = (key: string) => { const localized = homeHelpT?.(key); return localized && localized !== key ? localized : translations[lang]?.[key] || translations.en[key] || key; };
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   useEffect(() => {
@@ -108,12 +110,12 @@ const SnakeFaqModal: React.FC<Props> = ({ lang, playerColor, playerName, onClose
     className="fixed inset-0 z-[300] h-[100dvh] w-screen touch-pan-y overflow-hidden overscroll-none bg-[#050816]/98 text-white backdrop-blur-xl">
     <div className="h-full w-full touch-pan-y overflow-y-auto overflow-x-hidden overscroll-contain">
       <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-3 border-b border-white/10 bg-[#050816]/95 px-4 pb-3 pt-[max(.75rem,env(safe-area-inset-top))] backdrop-blur-xl sm:px-6">
-        <h2 id="snake-faq-title" className="min-w-0 text-xl font-black sm:text-2xl">{t.title}</h2>
-        <button type="button" onClick={onClose} aria-label={t.close}
+        <h2 id="snake-faq-title" className="min-w-0 text-xl font-black sm:text-2xl">{homeHelp ? help('homeHelp.title') : t.title}</h2>
+        <button type="button" onClick={onClose} aria-label={homeHelp ? help('homeHelp.close') : t.close}
           className="touch-manipulation grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/25 bg-slate-800 text-white shadow-xl active:scale-95"><X /></button>
       </header>
       <div className="mx-auto grid w-full max-w-5xl gap-4 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4 md:grid-cols-3 sm:px-6">
-        {([[t.bubble,t.bubbleHint,'bubble'],[t.self,t.selfHint,'self'],[t.tail,t.tailHint,'tail']] as [string,string,DemoKind][]).map(([title,hint,kind]) =>
+        {homeHelp ? (homeHelpItems || ["join", "watch", "profile", "arena", "language", "invite", "feedback", "wake", "connection", "closeItem"]).map(key => <article key={key} className="rounded-2xl border border-white/10 bg-white/[.05] p-4"><h3 className="font-black text-cyan-200">{help('homeHelp.' + key + '.title')}</h3><p className="mt-2 text-sm leading-relaxed text-slate-300">{help('homeHelp.' + key + '.body')}</p></article>) : ([[t.bubble,t.bubbleHint,'bubble'],[t.self,t.selfHint,'self'],[t.tail,t.tailHint,'tail']] as [string,string,DemoKind][]).map(([title,hint,kind]) =>
           <article key={kind} className="min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white/[.05] p-4 sm:p-5">
             <h3 className="text-lg font-black text-cyan-200 sm:text-xl">{title}</h3>
             <p className="mt-2 min-h-12 text-sm leading-relaxed text-slate-300">{hint}</p>

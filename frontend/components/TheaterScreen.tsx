@@ -20,8 +20,8 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
       <div className="pointer-events-none absolute inset-0 opacity-20" style={{ backgroundImage: 'conic-gradient(from 0deg at 50% 50%, transparent, #fbbf24, transparent 20%)', animation: 'spin 8s linear infinite' }} />
       <div className="relative max-w-2xl w-full bg-black/45 backdrop-blur-sm border border-white/10 rounded-3xl p-8 shadow-2xl space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-black tracking-tight text-white">本局成绩</h1>
-          <p className="text-slate-400 text-sm">仅计算已拼成的单词、句子及句子额外奖励。</p>
+          <h1 className="text-3xl font-black tracking-tight text-white">{t('theater.roundResults')}</h1>
+          <p className="text-slate-400 text-sm">{t('theater.scoreHint')}</p>
         </div>
 
         {/* Leaderboard & Achievement Review */}
@@ -50,14 +50,14 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-black font-mono text-amber-400">
-                      {snake.earnedLength} <span className="text-xs font-normal text-slate-400">分</span>
+                      {snake.earnedLength} <span className="text-xs font-normal text-slate-400">{t('theater.scoreUnit')}</span>
                     </div>
                   </div>
                 </div>
 
                 {sentences.length > 0 && (
                   <div className="mt-2 space-y-1.5">
-                    <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">完成句子 ({sentences.length})</div>
+                    <div className="text-[11px] font-bold text-amber-300 uppercase tracking-wider">{t('theater.completedSentences')} ({sentences.length})</div>
                     <div className="flex flex-wrap gap-2">
                       {sentences.map(s => (
                         <span
@@ -73,7 +73,7 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
 
                 {words.length > 0 && (
                   <div className="mt-2 space-y-1.5">
-                    <div className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">完成单词 ({words.length})</div>
+                    <div className="text-[11px] font-bold text-cyan-300 uppercase tracking-wider">{t('theater.completedWords')} ({words.length})</div>
                     <div className="flex flex-wrap gap-1.5">
                       {words.map(w => (
                         <span
@@ -96,7 +96,7 @@ export const TheaterScreen: React.FC<Props> = ({ arenaState, player, onRestart, 
           onClick={onRestart}
           className="w-full py-4 bg-cyan-500 hover:bg-cyan-400 active:scale-98 font-black text-slate-950 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2"
         >
-          <RotateCcw className="w-5 h-5" /> 返回大厅
+          <RotateCcw className="w-5 h-5" /> {t('theater.returnLobby')}
         </button>
       </div>
     </div>

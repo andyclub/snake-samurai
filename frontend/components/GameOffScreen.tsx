@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import ArenaCards from './ArenaCards';
 import HomeLink from './HomeLink';
-import { Play, QrCode, X } from 'lucide-react';
+import { Play, QrCode, X, HelpCircle } from 'lucide-react';
 import { audio } from '../audio';
+import SnakeFaqModal from './SnakeFaqModal';
 
 interface Props {
   t: (key: string) => string;
@@ -10,11 +10,15 @@ interface Props {
   gameUrl?: string;
 }
 
-const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://h.kazeabc.com' }) => {
+const GameOffScreen: React.FC<Props> = ({ t, gameUrl = 'https://h.kazeabc.com' }) => {
   const [showInviteQr, setShowInviteQr] = useState(false);
+  const [showHomeHelp, setShowHomeHelp] = useState(false);
+  const helpTitle = t('homeHelp.title') === 'homeHelp.title' ? 'Homepage button guide' : t('homeHelp.title');
 
   return (
     <div className="w-full max-w-full h-full flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-slate-900 to-slate-800">
+      <button type="button" onClick={() => setShowHomeHelp(true)} aria-label={helpTitle} title={helpTitle} className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] z-50 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-slate-800 text-amber-300"><HelpCircle /></button>
+      {showHomeHelp && <SnakeFaqModal lang="en" playerName="" playerColor="#38bdf8" homeHelp homeHelpT={t} homeHelpItems={["offStart", "offArena", "invite", "feedback", "home", "connection", "closeItem"]} onClose={() => setShowHomeHelp(false)} />}
       <div className="text-center space-y-8 p-8 bg-black/30 rounded-2xl backdrop-blur-sm border border-white/10 max-w-2xl w-[calc(100%_-_2rem)] max-h-[calc(100dvh_-_2rem)] overflow-y-auto overflow-x-hidden overscroll-contain">
         <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400 mb-2">
           {t('app.title')}
@@ -25,7 +29,19 @@ const GameOffScreen: React.FC<Props> = ({ t, arenaName, gameUrl = 'https://h.kaz
             {t('status.off')}
           </p>
         </div>
-        <div className="flex justify-center"><ArenaCards t={t} arenaName={arenaName} /></div>
+        <div className="grid grid-cols-3 gap-2" aria-label={t('arena.title')}>
+          {([
+            ['snake-free', 'arena.freeLabel', 'arena.freeHint', '🟢'],
+            ['snake-theme', 'arena.themeLabel', 'arena.themeHint', '🟡'],
+            ['snake-disaster', 'arena.disasterLabel', 'arena.disasterHint', '🔴'],
+          ] as const).map(([room, label, hint, icon]) => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('arena', room);
+            return <a key={room} href={url.toString()} className="min-w-0 rounded-2xl border border-white/15 bg-slate-900/80 p-3">
+              <span className="text-xl">{icon}</span><h2 className="mt-1 text-sm font-black">{t(label)}</h2><p className="mt-1 text-xs text-slate-400">{t(hint)}</p>
+            </a>;
+          })}
+        </div>
 
         <div className="flex flex-col items-center gap-3">
           <button

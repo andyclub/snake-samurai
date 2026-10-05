@@ -106,12 +106,13 @@ export const LobbyScreen: React.FC<Props> = ({
           {/* FAQ Modal Button */}
           <button
             type="button"
+            aria-label={t('homeHelp.title')} title={t('homeHelp.title')}
             onClick={() => setShowRulesModal(true)}
             className="touch-manipulation flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-white/10 hover:border-amber-400 rounded-full text-xs font-bold text-amber-300 transition-all shadow-lg active:scale-95 cursor-pointer"
           >
             <HelpCircle className="w-4 h-4 text-amber-400" />
-            <span className="hidden sm:inline">{t('rules.title')}</span>
-            <span className="sm:hidden">FAQ</span>
+            <span className="hidden sm:inline">?</span>
+            <span className="sm:hidden">?</span>
           </button>
 
           {/* QR Code Invitation Button */}
@@ -168,15 +169,15 @@ export const LobbyScreen: React.FC<Props> = ({
       <main className="z-10 mx-auto my-auto grid w-full max-w-2xl grid-cols-3 gap-2 py-3 sm:gap-3">
         <a href={arenaUrl('snake-free')} aria-current={selectedMode === 'free' ? 'page' : undefined}
           className={`touch-manipulation min-w-0 rounded-2xl border p-3 text-center transition-all ${selectedMode === 'free' ? 'border-cyan-300 bg-cyan-500/20 ring-2 ring-cyan-300/40' : 'border-white/10 bg-slate-900/80'}`}>
-          <div className="text-2xl">🟢</div><h2 className="mt-1 text-sm font-black sm:text-base">自由场</h2><p className="mt-1 truncate text-[10px] text-cyan-200">自由组词</p>
+          <div className="text-2xl">🟢</div><h2 className="mt-1 text-sm font-black sm:text-base">{t('arena.freeLabel')}</h2><p className="mt-1 truncate text-[10px] text-cyan-200">{t('arena.freeHint')}</p>
         </a>
         <a href={arenaUrl('snake-theme')} aria-current={selectedMode === 'random' ? 'page' : undefined}
           className={`touch-manipulation min-w-0 rounded-2xl border p-3 text-center transition-all ${selectedMode === 'random' ? 'border-amber-300 bg-amber-500/20 ring-2 ring-amber-300/40' : 'border-white/10 bg-slate-900/80'}`}>
-          <div className="text-2xl">🟡</div><h2 className="mt-1 text-sm font-black sm:text-base">主题场</h2><p className="mt-1 truncate text-[10px] text-amber-200">{selectedMode === 'random' ? t(`theme.${selectedTheme}`) : '随机主题'}</p>
+          <div className="text-2xl">🟡</div><h2 className="mt-1 text-sm font-black sm:text-base">{t('arena.themeLabel')}</h2><p className="mt-1 truncate text-[10px] text-amber-200">{selectedMode === 'random' ? t(`theme.${selectedTheme}`) : t('arena.themeHint')}</p>
         </a>
         <a href={arenaUrl('snake-disaster')} aria-current={selectedMode === 'disaster' ? 'page' : undefined}
           className={`touch-manipulation min-w-0 rounded-2xl border p-3 text-center transition-all ${selectedMode === 'disaster' ? 'border-red-300 bg-red-500/20 ring-2 ring-red-300/40' : 'border-white/10 bg-slate-900/80'}`}>
-          <div className="text-2xl">🔴</div><h2 className="mt-1 text-sm font-black sm:text-base">防灾场</h2><p className="mt-1 truncate text-[10px] font-bold text-red-200">高难度 · 题库限定</p>
+          <div className="text-2xl">🔴</div><h2 className="mt-1 text-sm font-black sm:text-base">{t('arena.disasterLabel')}</h2><p className="mt-1 truncate text-[10px] font-bold text-red-200">{t('arena.disasterHint')}</p>
         </a>
       </main>
 
@@ -216,16 +217,22 @@ export const LobbyScreen: React.FC<Props> = ({
         {/* Match waiting status */}
         <div className="flex items-center gap-4 w-full md:w-auto justify-end">
           <div className="text-right hidden sm:block">
-            <div className="text-[10px] text-slate-400 font-bold uppercase">{lobbyEndsAt ? '距离开始' : '等待时间'}</div>
-            <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : '准备中'}</div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase">{lobbyEndsAt ? t('lobby.timeUntilStart') : t('lobby.waitTime')}</div>
+            <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : t('lobby.preparing')}</div>
           </div>
           <div className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-center text-sm font-black text-cyan-100">
-            {connectionError || (isJoined ? (lobbyEndsAt ? `游戏将在 ${secondsLeft} 秒后开始` : '已参加本局 · 等待开始') : '正在旁观 · 点击参加本局')}
+            {connectionError || (isJoined ? (lobbyEndsAt ? t('lobby.startsIn').replace('{seconds}', String(secondsLeft)) : t('lobby.joinedWaiting')) : t('lobby.observing'))}
           </div>
-          <button type="button" onClick={() => onJoinChange(isJoined)}
-            className="touch-manipulation shrink-0 rounded-2xl border border-cyan-300/40 bg-cyan-500 px-5 py-3.5 text-sm font-black text-slate-950 transition hover:bg-cyan-400 active:scale-95">
-            {isJoined ? '退出本局 · 旁观' : '参加本局'}
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" aria-pressed={isJoined} onClick={() => onJoinChange(false)}
+              className={`touch-manipulation rounded-2xl border px-4 py-3.5 text-sm font-black transition active:scale-95 ${isJoined ? 'border-cyan-300 bg-cyan-500 text-slate-950' : 'border-white/20 bg-slate-800 text-slate-300'}`}>
+              {t('lobby.joinRound')}
+            </button>
+            <button type="button" aria-pressed={!isJoined} onClick={() => onJoinChange(true)}
+              className={`touch-manipulation rounded-2xl border px-4 py-3.5 text-sm font-black transition active:scale-95 ${!isJoined ? 'border-violet-300 bg-violet-500 text-white' : 'border-white/20 bg-slate-800 text-slate-300'}`}>
+              {t('lobby.keepWatching')}
+            </button>
+          </div>
         </div>
       </footer>
 
@@ -242,7 +249,7 @@ export const LobbyScreen: React.FC<Props> = ({
       </div>
 
       {/* FAQ / Rules Modal */}
-      {showRulesModal && <SnakeFaqModal lang={lang} playerColor={selectedColor} playerName={nameInput} onClose={() => setShowRulesModal(false)} />}
+      {showRulesModal && <SnakeFaqModal homeHelp lang={lang} playerColor={selectedColor} playerName={nameInput} onClose={() => setShowRulesModal(false)} />}
       {false && showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
@@ -292,7 +299,7 @@ export const LobbyScreen: React.FC<Props> = ({
 
             <div className="flex items-center justify-center gap-2">
               <QrCode className="w-6 h-6 text-cyan-400" />
-              <h3 className="text-lg font-black text-white">游戏邀请二维码</h3>
+              <h3 className="text-lg font-black text-white">{t('qr.title')}</h3>
             </div>
 
             <div className="p-4 bg-slate-950 rounded-2xl border border-white/10 inline-block shadow-inner">
@@ -304,7 +311,7 @@ export const LobbyScreen: React.FC<Props> = ({
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs text-slate-400">手机扫码或浏览器输入网址加入：</p>
+              <p className="text-xs text-slate-400">{t('qr.joinHint')}</p>
               <a
                 href={INVITE_URL}
                 target="_blank"

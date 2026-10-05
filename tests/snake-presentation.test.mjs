@@ -31,7 +31,9 @@ test('input immediately moves displayed head/body with no authority, food or ear
 test('150ms buffer caps extrapolation and keeps lost-packet display stopped',()=>{
  const p=mount();p.input('p',{x:1000,y:600},1000);
  assert.equal(p.frame('p',1150)['snake-p'].head.x,527);
- assert.deepEqual(p.frame('p',5000)['snake-p'].head,p.frame('p',1150)['snake-p'].head);
+ const stopped={...p.frame('p',1150)['snake-p'].head};
+ assert.deepEqual(p.frame('p',1500)['snake-p'].head,stopped);
+ assert.deepEqual(p.frame('p',5000)['snake-p'].head,stopped);
 });
 test('other snakes only interpolate known positions with no target extrapolation',()=>{
  const s=snake({id:'other',playerId:'other'}),p=mount(s);
@@ -41,12 +43,12 @@ test('other snakes only interpolate known positions with no target extrapolation
  assert.equal(p.frame('p',5000).other.head.x,600);
 });
 test('authority correction converges and target-only updates preserve immediate turning anchor',()=>{
- const p=mount();p.input('p',{x:1000,y:600},1000);
- const optimistic=snake({target:{x:1000,y:600}});
+ const initial=snake(),p=mount(initial);p.input('p',{x:1000,y:600},1000);
+ const optimistic={...initial,target:{x:1000,y:600}};
  p.observe({[optimistic.id]:optimistic},bounds,'p',1000);
  assert.equal(p.frame('p',1100)['snake-p'].head.x,518);
  p.input('p',{x:100,y:600},1100);
- p.observe({'snake-p':snake({target:{x:100,y:600}})},bounds,'p',1100);
+ p.observe({'snake-p':{...optimistic,target:{x:100,y:600}}},bounds,'p',1100);
  assert.equal(p.frame('p',1100)['snake-p'].head.x,518);
  assert.equal(p.frame('p',1150)['snake-p'].head.x,509);
  const next=snake({head:{x:505,y:600},target:{x:100,y:600}});
@@ -56,7 +58,7 @@ test('authority correction converges and target-only updates preserve immediate 
 });
 test('fresh stopped authority, spill, disconnect and remount/reset clear predictions',()=>{
  const p=mount();p.input('p',{x:1000,y:600},1000);
- p.observe({'snake-p':snake()},bounds,'p',1150);
+ p.observe({'snake-p':snake({target:{x:1000,y:600}})},bounds,'p',1150);
  assert.equal(p.frame('p',1200)['snake-p'].head.x,500);
  p.reset('snake-p');p.observe({'snake-p':snake({head:{x:550,y:600},heldFoods:[]})},bounds,'p',1300);
  assert.equal(p.frame('p',1300)['snake-p'].head.x,550);
@@ -147,4 +149,90 @@ test('actual mounted Canvas RAF follows identity changed after initial mount',as
  assert.ok(draws.at(-1).snakes['snake-p'].head.x>800);
  assert.equal(snakesRef.current['snake-p'].head.x,800);
  for(const slot of slots)slot?.cleanup?.();
+});
+
+test('200ms authority cadence adapts local prediction without a 150ms freeze; remote interpolation remains 150ms',()=>{
+ const p=mount(snake({target:{x:1000,y:600}}));
+ p.observe({'snake-p':snake({head:{x:536,y:600},target:{x:1000,y:600}})},bounds,'p',1200);
+ const positions=[1340,1350,1360,1380,1399].map(t=>p.frame('p',t)['snake-p'].head.x);
+ for(let i=1;i<positions.length;i++)assert.ok(positions[i]>positions[i-1]);
+ assert.deepEqual(p.frame('p',1450)['snake-p'].head,p.frame('p',9000)['snake-p'].head);
+ // A very late sample cannot expand the stale horizon beyond 300ms.
+ p.observe({'snake-p':snake({head:{x:600,y:600},target:{x:1000,y:600}})},bounds,'p',2000);
+ assert.deepEqual(p.frame('p',2300)['snake-p'].head,p.frame('p',9000)['snake-p'].head);
+});
+
+test('in-flight authority motion with old target preserves the latest unconfirmed turn',()=>{
+ const initial=snake({target:{x:1000,y:600}}),p=mount(initial),before=JSON.stringify(initial);
+ p.input('p',{x:100,y:600},1100);
+ p.observe({'snake-p':{...initial,target:{x:100,y:600}}},bounds,'p',1100);
+ p.observe({'snake-p':snake({head:{x:520,y:600},target:{x:1000,y:600}})},bounds,'p',1120);
+ const at120=p.frame('p',1120)['snake-p'].head.x,at160=p.frame('p',1160)['snake-p'].head.x,at200=p.frame('p',1200)['snake-p'].head.x;
+ assert.ok(at160<at120);assert.ok(at200<at160);
+ assert.equal(JSON.stringify(initial),before);
+});
+
+test('newest target acknowledgment and a stationary authority sample immediately stop collision prediction',()=>{
+ const initial=snake({target:{x:1000,y:600}}),p=mount(initial);
+ p.input('p',{x:100,y:600},1050);
+ // Acknowledgment may change target while the authoritative head is stationary.
+ const confirmed=snake({target:{x:100,y:600}});
+ p.observe({'snake-p':confirmed},bounds,'p',1100);
+ assert.equal(p.frame('p',1100)['snake-p'].head.x,500);
+ assert.equal(p.frame('p',1250)['snake-p'].head.x,500);
+ // Confirmed input has been cleared: a later authority target owns the pose.
+ p.observe({'snake-p':snake({head:{x:510,y:600},target:{x:1000,y:600}})},bounds,'p',1300);
+ assert.equal(p.frame('p',1350)['snake-p'].direction.x,1);
+});
+
+test('unconfirmed input expires after 500ms even with fresh old-target authority samples',()=>{
+ const p=mount(snake({target:{x:1000,y:600}}));
+ p.input('p',{x:100,y:600},1050);
+ for(const time of [1200,1400])p.observe({'snake-p':snake({head:{x:500+(time-1000)*.18,y:600},target:{x:1000,y:600}})},bounds,'p',time);
+ assert.equal(p.frame('p',1549)['snake-p'].direction.x,-1);
+ assert.equal(p.frame('p',1550)['snake-p'].direction.x,1);
+ p.observe({'snake-p':snake({connected:false})},bounds,'p',1560);
+ assert.deepEqual(p.frame('p',1600),{});
+ assert.equal(p.input('p',{x:1000,y:600},1600),false);
+});
+
+test('continuous pointer and local target-only feedback cannot renew the authority stale deadline',()=>{
+ const initial=snake({target:{x:1000,y:600}}),p=mount(initial);
+ let source=initial;
+ for(let time=1020;time<=1800;time+=20){
+  const target={x:1000,y:600};
+  p.input('p',target,time);
+  source={...source,target}; // App's optimistic target keeps head/body references.
+  p.observe({'snake-p':source},bounds,'p',time);
+ }
+ assert.equal(p.input('p',{x:1800,y:600},1800),false);
+ assert.ok(Math.abs(p.frame('p',1800)['snake-p'].head.x-527)<1e-8);
+ assert.deepEqual(p.frame('p',1800)['snake-p'].head,p.frame('p',9000)['snake-p'].head);
+});
+
+test('acknowledging an earlier input cannot clear a later target',()=>{
+ const p=mount(snake({target:{x:1000,y:600}}));
+ p.input('p',{x:100,y:600},1050);
+ p.input('p',{x:1200,y:600},1080);
+ p.observe({'snake-p':snake({head:{x:505,y:600},target:{x:100,y:600}})},bounds,'p',1100);
+ assert.equal(p.frame('p',1110)['snake-p'].direction.x,1);
+ p.observe({'snake-p':snake({head:{x:505,y:600},target:{x:1200,y:600}})},bounds,'p',1150);
+ assert.equal(p.frame('p',1200)['snake-p'].head.x,505);
+});
+
+test('near targets do not overshoot or reverse at 200-300ms horizons and remain frozen when stale',()=>{
+ for(const interval of [200,300]){
+  const target={x:520,y:600},initial=snake({head:{x:480,y:600},target}),p=mount(initial);
+  const sampleAt=1000+interval;
+  p.observe({'snake-p':snake({head:{x:500,y:600},target})},bounds,'p',sampleAt);
+  const xs=[0,40,80,120,160,200,250,300].map(elapsed=>p.frame('p',sampleAt+elapsed)['snake-p'].head.x);
+  for(let i=0;i<xs.length;i++){
+   assert.ok(xs[i]<=520+1e-8, 'display head must not pass the nearby target');
+   if(i)assert.ok(xs[i]>=xs[i-1]-1e-8, 'display movement must not reverse near the target');
+  }
+  assert.equal(xs.at(-1),520);
+  const frozen={...p.frame('p',sampleAt+300)['snake-p'].head};
+  assert.equal(p.input('p',{x:400,y:600},sampleAt+400),false);
+  assert.deepEqual(p.frame('p',sampleAt+1000)['snake-p'].head,frozen);
+ }
 });

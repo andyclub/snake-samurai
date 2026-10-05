@@ -214,7 +214,7 @@ test('join and exit are explicit scoped intents, and profile cannot enroll the u
 function appFixture() {
   const h = harness(), intents = [], profileChanges = [], audioCalls = [];
   let options;
-  const components = Object.fromEntries(['GameBoard', 'LobbyScreen', 'TheaterScreen', 'GameOffScreen', 'ConnectionStatus'].map(name => [name, function Component() {}]));
+  const components = Object.fromEntries(['GameBoard', 'LobbyScreen', 'TheaterScreen', 'GameOffScreen', 'ConnectionStatus', 'ScreenWakeLockSetting'].map(name => [name, function Component() {}]));
   const audio = Object.fromEntries(['init', 'setBGM', 'playTailSpill', 'playPickup', 'playWordCompleted', 'playSentenceCompleted', 'playVictory'].map(name => [name, (...args) => audioCalls.push([name, ...args])]));
   const hook = supplied => {
     options = supplied;
@@ -230,6 +230,7 @@ function appFixture() {
   };
   const noHost = () => { throw new Error('Authoritative helper must not run on browser action'); };
   const dependencies = {
+    './useScreenWakeLock': { useScreenWakeLock: () => ({ enabled: true, status: 'unsupported', setEnabled() {}, retry() {} }) },
     './types': { GamePhase: phases },
     './i18n': { getBrowserLanguage: () => 'ja', translations: { ja: {} } },
     './audio': { audio }, './useSnakeSamuraiMultiplayer': { useSnakeSamuraiMultiplayer: hook },
@@ -339,10 +340,10 @@ test('Lobby profile edits remain separate from explicit join/exit and null deadl
     input.props.onBlur();
     assert.equal(edits.length, 1);
     assert.equal(choices.length, 0);
-    find(h.output(), node => node.type === 'button' && node.props.children.includes('参加本局')).props.onClick();
+    find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.joinRound')).props.onClick();
     equal(choices, [false]);
     h.update({ ...props, isJoined: true });
-    find(h.output(), node => node.type === 'button' && node.props.children.includes('退出本局 · 旁观')).props.onClick();
+    find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.keepWatching')).props.onClick();
     equal(choices, [false, true]);
   } finally { h.cleanup(); }
 });
