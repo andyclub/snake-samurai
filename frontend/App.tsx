@@ -51,7 +51,7 @@ const App: React.FC = () => {
     name: localStorage.getItem('kazeabc_name') || randomKatakana(),
     color: localStorage.getItem('kazeabc_color') || '#3b82f6',
     isBot: false,
-    isSpectator: true
+    isSpectator: false
   }));
 
   // Game State (React UI rendering)
@@ -148,10 +148,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const waiting = phase === GamePhase.LOBBY || (phase === GamePhase.THEATER && showLobbyFromResults);
     if (!waiting) { defaultAdmissionAttempted.current = false; return; }
-    if (!hasSnapshot || !userId || connection !== 'online' || defaultAdmissionAttempted.current) return;
+    if (!hasSnapshot || !userId || connection !== 'online' || defaultAdmissionAttempted.current || player.isSpectator) return;
     defaultAdmissionAttempted.current = true;
     if (!isJoined) void joinMatch(false);
-  }, [phase, showLobbyFromResults, hasSnapshot, userId, connection, isJoined, joinMatch]);
+  }, [phase, showLobbyFromResults, hasSnapshot, userId, connection, isJoined, player.isSpectator, joinMatch]);
 
   useEffect(() => {
     if (userId && player.id !== userId) setPlayer(previous => ({ ...previous, id: userId }));
@@ -411,7 +411,11 @@ const App: React.FC = () => {
           player={player}
           players={onlinePlayers}
           isJoined={isJoined}
-          onJoinChange={isSpectator => { void joinMatch(isSpectator); }}
+          onJoinChange={isSpectator => {
+            setPlayer(previous => ({ ...previous, isSpectator }));
+            defaultAdmissionAttempted.current = true;
+            void joinMatch(isSpectator);
+          }}
           selectedMode={mode}
           selectedTheme={theme}
           onUpdatePlayer={handleUpdatePlayer}

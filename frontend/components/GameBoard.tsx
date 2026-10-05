@@ -182,7 +182,7 @@ export const GameBoard: React.FC<Props> = ({
             width / Math.max(1, visibleBounds.maxX - visibleBounds.minX),
             height / Math.max(1, visibleBounds.maxY - visibleBounds.minY),
           ) * 0.92;
-          const targetZoom = currentSnake ? calculateCameraZoom(currentSnake.totalLength) : spectatorZoom;
+          const targetZoom = currentSnake ? calculateCameraZoom(currentSnake.totalLength, width, height) : spectatorZoom;
           const targetX = currentSnake ? currentSnake.head.x : (visibleBounds.minX + visibleBounds.maxX) / 2;
           const targetY = currentSnake ? currentSnake.head.y : (visibleBounds.minY + visibleBounds.maxY) / 2;
           

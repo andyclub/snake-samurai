@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {calculateCameraZoom} from '../frontend/game/snakeMovement.ts';
 import {createSnakePresentation,findDisplayPlayerSnake,snakeDisplayWorldPoint} from '../frontend/game/snakePresentation.ts';
 const bounds={minX:0,maxX:2000,minY:0,maxY:2000};
 const snake=(extra={})=>({id:'snake-p',playerId:'p',nickname:'P',baseColor:'#fff',head:{x:500,y:600},direction:{x:1,y:0},target:{x:500,y:600},
@@ -234,5 +235,42 @@ test('near targets do not overshoot or reverse at 200-300ms horizons and remain 
   const frozen={...p.frame('p',sampleAt+300)['snake-p'].head};
   assert.equal(p.input('p',{x:400,y:600},sampleAt+400),false);
   assert.deepEqual(p.frame('p',sampleAt+1000)['snake-p'].head,frozen);
+ }
+});
+
+test('delayed advancing authority never reverses a forward prediction while preserving the stale deadline',()=>{
+ const p=mount(snake({target:{x:1000,y:600}}));
+ p.frame('p',1150);
+ p.observe({'snake-p':snake({head:{x:509,y:600},target:{x:1000,y:600}})},bounds,'p',1150);
+ const xs=Array.from({length:11},(_,index)=>p.frame('p',1150+index*16)['snake-p'].head.x);
+ assert.equal(xs[0],527);
+ xs.slice(1).forEach((x,index)=>assert.ok(x>=xs[index],`display moved backwards at frame ${index+1}`));
+ const frozen=p.frame('p',1350)['snake-p'].head;
+ assert.deepEqual(p.frame('p',5000)['snake-p'].head,frozen);
+});
+test('phone views double both world axes and preserve desktop zoom and pointer mapping',()=>{
+ for(const length of [0,20,200])for(const [width,height]of [[390,844],[844,390],[360,740]]){
+  const desktop=calculateCameraZoom(length),mobile=calculateCameraZoom(length,width,height);
+  assert.equal(desktop/mobile,2);
+  assert.equal((width/mobile)*(height/mobile)/((width/desktop)*(height/desktop)),4);
+  const camera={x:500,y:600};
+  assert.deepEqual(snakeDisplayWorldPoint(width/2,height/2,width,height,mobile,camera),camera);
+  assert.equal(snakeDisplayWorldPoint(width/2+60*mobile,height/2,width,height,mobile,camera).x,560);
+ }
+ assert.equal(calculateCameraZoom(20,1280,800),calculateCameraZoom(20));
+});
+
+test('slow advancing authority cannot accumulate prediction farther than the 300ms speed budget',()=>{
+ const p=mount(snake({target:{x:1000,y:600}}));
+ for(let sample=1;sample<=100;sample++){
+  const time=1000+sample*150,head=500+sample;
+  p.observe({'snake-p':snake({head:{x:head,y:600},target:{x:1000,y:600}})},bounds,'p',time);
+  let previous=p.frame('p',time)['snake-p'].head.x;
+  for(let frame=1;frame<=9;frame++){
+   const x=p.frame('p',time+frame*16)['snake-p'].head.x;
+   assert.ok(x>=previous-1e-8,'forward correction regressed');
+   assert.ok(x-head<=54+1e-8,'prediction exceeded authority distance budget');
+   previous=x;
+  }
  }
 });

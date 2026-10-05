@@ -221,15 +221,15 @@ export const LobbyScreen: React.FC<Props> = ({
             <div className="text-xl font-mono font-black text-cyan-400">{lobbyEndsAt ? `${secondsLeft}s` : t('lobby.preparing')}</div>
           </div>
           <div className="w-full sm:w-auto px-6 py-3.5 sm:py-4 rounded-2xl border border-cyan-300/25 bg-cyan-400/10 text-center text-sm font-black text-cyan-100">
-            {connectionError || (isJoined ? (lobbyEndsAt ? t('lobby.startsIn').replace('{seconds}', String(secondsLeft)) : t('lobby.joinedWaiting')) : t('lobby.observing'))}
+            {connectionError || (isJoined ? (lobbyEndsAt ? t('lobby.startsIn').replace('{seconds}', String(secondsLeft)) : t('lobby.joinedWaiting')) : player.isSpectator ? t('lobby.observing') : t('lobby.preparing'))}
           </div>
           <div className="flex shrink-0 gap-2">
-            <button type="button" aria-pressed={isJoined} onClick={() => onJoinChange(false)}
-              className={`touch-manipulation rounded-2xl border px-4 py-3.5 text-sm font-black transition active:scale-95 ${isJoined ? 'border-cyan-300 bg-cyan-500 text-slate-950' : 'border-white/20 bg-slate-800 text-slate-300'}`}>
+            <button type="button" aria-pressed={!player.isSpectator} onClick={() => onJoinChange(false)}
+              className={`touch-manipulation rounded-2xl border px-4 py-3.5 text-sm font-black transition active:scale-95 ${!player.isSpectator ? 'border-cyan-300 bg-cyan-500 text-slate-950' : 'border-white/20 bg-slate-800 text-slate-300'}`}>
               {t('lobby.joinRound')}
             </button>
-            <button type="button" aria-pressed={!isJoined} onClick={() => onJoinChange(true)}
-              className={`touch-manipulation rounded-2xl border px-4 py-3.5 text-sm font-black transition active:scale-95 ${!isJoined ? 'border-violet-300 bg-violet-500 text-white' : 'border-white/20 bg-slate-800 text-slate-300'}`}>
+            <button type="button" aria-pressed={player.isSpectator} onClick={() => onJoinChange(true)}
+              className={`touch-manipulation rounded-2xl border px-4 py-3.5 text-sm font-black transition active:scale-95 ${player.isSpectator ? 'border-violet-300 bg-violet-500 text-white' : 'border-white/20 bg-slate-800 text-slate-300'}`}>
               {t('lobby.keepWatching')}
             </button>
           </div>

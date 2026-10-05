@@ -77,8 +77,19 @@ export function createSnakePresentation() {
       const remaining = Math.max(0, entry.lastAuthorityAt + entry.horizon - entry.observedAt);
       const poseElapsed = Math.max(0, poseTime - entry.observedAt);
       const predicted = predict(entry.base, poseElapsed, bounds, target, remaining);
-      const weight = Math.max(0, 1 - poseElapsed / CORRECTION);
-      const corrected = translate(predicted, entry.correction.x * weight, entry.correction.y * weight);
+      // A delayed sample must not ease backwards faster than the snake moves.
+      const correctionWindow = Math.max(CORRECTION, CORRECTION
+        + Math.hypot(entry.correction.x, entry.correction.y)
+          / calculateSnakeSpeed(entry.base.earnedLength, entry.base.heldFoods.length) * 1000);
+      const weight = Math.max(0, 1 - poseElapsed / correctionWindow);
+      let corrected = translate(predicted, entry.correction.x * weight, entry.correction.y * weight);
+      // Repeated slow samples cannot accumulate an unlimited prediction lead.
+      const dx = corrected.head.x - entry.sourceHead.x, dy = corrected.head.y - entry.sourceHead.y;
+      const distance = Math.hypot(dx, dy);
+      const limit = calculateSnakeSpeed(entry.base.earnedLength, entry.base.heldFoods.length) * MAX_PREDICTION / 1000;
+      if (distance > limit) corrected = translate(corrected,
+        entry.sourceHead.x + dx / distance * limit - corrected.head.x,
+        entry.sourceHead.y + dy / distance * limit - corrected.head.y);
       const x = Math.max(bounds.minX + 15, Math.min(bounds.maxX - 15, corrected.head.x));
       const y = Math.max(bounds.minY + 15, Math.min(bounds.maxY - 15, corrected.head.y));
       const displayed = translate(corrected, x - corrected.head.x, y - corrected.head.y);

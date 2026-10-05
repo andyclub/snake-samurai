@@ -216,9 +216,11 @@ export function updateSnakePosition(
   };
 }
 
-export function calculateCameraZoom(totalLength?: number): number {
+export function calculateCameraZoom(totalLength?: number, viewportWidth?: number, viewportHeight?: number): number {
   const len = (typeof totalLength === 'number' && Number.isFinite(totalLength)) ? totalLength : 3;
   const targetZoom = 1.55 / (1.0 + Math.log10(1 + Math.max(0, len) * 0.05));
   const zoom = Math.max(0.85, Math.min(1.55, targetZoom));
-  return Number.isFinite(zoom) ? zoom : 1.2;
+  const mobile = Number.isFinite(viewportWidth) && Number.isFinite(viewportHeight)
+    && Math.min(viewportWidth!, viewportHeight!) < 640;
+  return (Number.isFinite(zoom) ? zoom : 1.2) * (mobile ? 0.5 : 1);
 }

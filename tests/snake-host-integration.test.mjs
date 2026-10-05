@@ -219,8 +219,8 @@ function appFixture(configuration = {}) {
   const hook = supplied => {
     options = supplied;
     return {
-      userId: 'server-player', isHost: false, isJoined: false, connection: configuration.connection || 'online', connectionFailure:null, retryConnection(){}, registrationError: '', onlinePlayers: [],
-      joinMatch: async isSpectator => { intents.push({ type: 'join', isSpectator }); return 'ok'; },
+      userId: 'server-player', hasSnapshot: configuration.hasSnapshot ?? false, isHost: false, isJoined: configuration.isJoined ?? false, connection: configuration.connection || 'online', connectionFailure:null, retryConnection(){}, registrationError: '', onlinePlayers: [],
+      joinMatch: async isSpectator => { intents.push({ type: 'join', isSpectator }); return configuration.joinResult ?? 'ok'; },
       sendIntent: async body => { intents.push(body); return 'ok'; },
       sendMoveIntent: async (targetX, targetY) => { intents.push({ type: 'input', targetX, targetY }); return configuration.moveResult ?? 'ok'; },
       requestSnapshot: async () => { intents.push({ type: 'request_state' }); return 'ok'; },
@@ -248,6 +248,71 @@ function appFixture(configuration = {}) {
   h.mount(app);
   return { h, intents, components, audioCalls, configuration, options: () => options, tree: () => h.output() };
 }
+
+test('App selects participation preference before server admission', async () => {
+  const f = appFixture();
+  try {
+    await flush();
+    const lobby = find(f.tree(), node => node.type === f.components.LobbyScreen);
+    assert.ok(lobby);
+    assert.equal(lobby.props.isJoined, false);
+    assert.equal(lobby.props.player.isSpectator, false);
+  } finally { f.h.cleanup(); }
+});
+
+test('manual participation choice before connection stays selected without a duplicate auto-join', async () => {
+  const f = appFixture({ connection: 'connecting', joinResult: 'error' });
+  try {
+    await flush();
+    let lobby = find(f.tree(), node => node.type === f.components.LobbyScreen);
+    lobby.props.onJoinChange(false);
+    await flush();
+    assert.equal(f.options().player.isSpectator, false);
+    assert.deepEqual(f.intents, [{ type: 'join', isSpectator: false }]);
+    f.configuration.connection = 'online';
+    f.configuration.hasSnapshot = true;
+    f.h.update();
+    await flush();
+    lobby = find(f.tree(), node => node.type === f.components.LobbyScreen);
+    assert.equal(lobby.props.player.isSpectator, false);
+    assert.deepEqual(f.intents, [{ type: 'join', isSpectator: false }]);
+  } finally { f.h.cleanup(); }
+});
+
+test('manual watch preference prevents delayed default admission', async () => {
+  const f = appFixture({ connection: 'connecting', hasSnapshot: true });
+  try {
+    await flush();
+    const lobby = find(f.tree(), node => node.type === f.components.LobbyScreen);
+    lobby.props.onJoinChange(true);
+    await flush();
+    assert.equal(f.options().player.isSpectator, true);
+    f.configuration.connection = 'online';
+    f.h.update();
+    await flush();
+    assert.deepEqual(f.intents, [{ type: 'join', isSpectator: true }]);
+    assert.equal(f.options().player.isSpectator, true);
+  } finally { f.h.cleanup(); }
+});
+
+test('profile edits preserve spectator preference and do not enroll the user', async () => {
+  const f = appFixture({ connection: 'connecting', hasSnapshot: true });
+  try {
+    await flush();
+    let lobby = find(f.tree(), node => node.type === f.components.LobbyScreen);
+    lobby.props.onJoinChange(true);
+    await flush();
+    lobby = find(f.tree(), node => node.type === f.components.LobbyScreen);
+    lobby.props.onUpdatePlayer('Renamed', '#654321');
+    await flush();
+    assert.equal(f.options().player.isSpectator, true);
+    f.configuration.connection = 'online';
+    f.h.update();
+    await flush();
+    assert.deepEqual(f.intents, [{ type: 'join', isSpectator: true }]);
+    assert.equal(f.options().player.isSpectator, true);
+  } finally { f.h.cleanup(); }
+});
 
 test('App sends candidate indices/compose/self-spill intents while only updating own target immediately', async () => {
   const f = appFixture();
@@ -330,19 +395,25 @@ test('Lobby profile edits remain separate from explicit join/exit and null deadl
     './FullscreenCountdown': { __esModule: true, default: component },
     './SnakeFaqModal': { __esModule: true, default: component },
   }).default;
-  const props = { player, players: [], isJoined: false, onJoinChange: value => choices.push(value),
+  const props = { player: { ...player, isSpectator: false }, players: [], isJoined: false, onJoinChange: value => choices.push(value),
     selectedMode: 'free', selectedTheme: 'free', onUpdatePlayer: (...args) => edits.push(args),
     lang: 'ja', onSelectLanguage() {}, lobbyEndsAt: null, t: key => key };
   try {
     h.mount(lobby, props);
     assert.equal(h.timers.size, 0);
+    const joinButton = find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.joinRound'));
+    const watchButton = find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.keepWatching'));
+    assert.equal(joinButton.props['aria-pressed'], true);
+    assert.equal(watchButton.props['aria-pressed'], false);
     const input = find(h.output(), node => node.type === 'input');
     input.props.onBlur();
     assert.equal(edits.length, 1);
     assert.equal(choices.length, 0);
     find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.joinRound')).props.onClick();
     equal(choices, [false]);
-    h.update({ ...props, isJoined: true });
+    h.update({ ...props, player: { ...props.player, isSpectator: true }, isJoined: false });
+    assert.equal(find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.joinRound')).props['aria-pressed'], false);
+    assert.equal(find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.keepWatching')).props['aria-pressed'], true);
     find(h.output(), node => node.type === 'button' && node.props.children.includes('lobby.keepWatching')).props.onClick();
     equal(choices, [false, true]);
   } finally { h.cleanup(); }
