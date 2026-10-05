@@ -142,6 +142,7 @@ export function createSnakeEngine(options: SnakeEngineOptions) {
       playerId: string,
       expectedHeldFoodIds: string[],
       validation: { ok: boolean; valid: boolean; canonical?: string; reason?: string },
+      candidateIndex?: number,
     ): EngineActionResult {
       if (ended(clock())) return result(false, 'match_ended');
       const snake = canAct(playerId);
@@ -159,11 +160,16 @@ export function createSnakeEngine(options: SnakeEngineOptions) {
         bump();
         return result(false, validation?.reason || 'validation_failed', true, { foodPickups: [], spills: [{ victimId: snake.id, attackerId: null, foodCount: snake.heldFoods.length }] });
       }
+      const candidate = candidateIndex === undefined ? undefined
+        : searchCandidates(snake.heldFoods, state.theme).candidates[candidateIndex];
+      if (candidateIndex !== undefined && (!Number.isSafeInteger(candidateIndex) || !candidate
+        || validation.canonical !== candidate.canonical)) return result(false, 'validation_mismatch');
       const surface = snake.heldFoods.map(food => food.glyph).join('');
       const canonical = typeof validation.canonical === 'string' && validation.canonical ? validation.canonical : surface;
       const completed = completeWord(snake, {
-        id: `verified-${clock()}`, canonical, reading: canonical,
-        readingLength: Array.from(surface).length, themeMatch: true,
+        id: `verified-${clock()}`, canonical, reading: candidate?.reading ?? canonical,
+        readingLength: candidate?.readingLength ?? Array.from(surface).length, themeMatch: true,
+        ...(candidate ? { consumedFoodIds: candidate.consumedFoodIds } : {}),
       }, state.foods, state.bounds, state.theme);
       state.snakes[snake.id] = refreshBuild(completed.updatedSnake);
       state.foods = completed.updatedFoods;

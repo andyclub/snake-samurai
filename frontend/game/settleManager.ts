@@ -8,7 +8,9 @@ export function settleWord(
   bounds: ArenaBounds,
   activeTheme: Theme
 ): { updatedSnake: SnakeState; updatedFoods: Record<string, FoodState> } {
-  const consumedFoods = snake.heldFoods;
+  const selectedIds = candidate.consumedFoodIds && new Set(candidate.consumedFoodIds);
+  const consumedFoods = selectedIds ? snake.heldFoods.filter(food => selectedIds.has(food.foodId)) : snake.heldFoods;
+  const unusedFoods = selectedIds ? snake.heldFoods.filter(food => !selectedIds.has(food.foodId)) : [];
   const firstColor = consumedFoods[0]?.color || snake.baseColor;
   const recordId = `rec-word-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
@@ -53,8 +55,26 @@ export function settleWord(
     completionHistory: [...snake.completionHistory, record]
   };
 
-  // Replenish consumed map foods
+  // Return unused held items under their original IDs; replenish only consumed items.
   const nextFoods = { ...foods };
+  consumedFoods.forEach(food => { delete nextFoods[food.foodId]; });
+  unusedFoods.forEach((food, index) => {
+    const original = foods[food.foodId];
+    const angle = (index / Math.max(1, unusedFoods.length)) * Math.PI * 2;
+    nextFoods[food.foodId] = {
+      ...original,
+      id: food.foodId,
+      displayedGlyph: food.glyph,
+      normalizedGlyph: food.normalizedGlyph,
+      type: original?.type || (/^\p{Script=Han}+$/u.test(food.glyph) ? 'kanji' : 'hiragana'),
+      color: food.color,
+      x: Math.max(bounds.minX + 28, Math.min(bounds.maxX - 28, snake.head.x + Math.cos(angle) * 90)),
+      y: Math.max(bounds.minY + 28, Math.min(bounds.maxY - 28, snake.head.y + Math.sin(angle) * 90)),
+      collisionRadius: original?.collisionRadius || 18,
+      state: 'ground',
+      heldByPlayerId: null
+    };
+  });
   consumedFoods.forEach((_, idx) => {
     const newId = `replenish-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
     nextFoods[newId] = generateSingleFood(newId, bounds);

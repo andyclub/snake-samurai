@@ -42,6 +42,25 @@ export function matchesLexemeSpelling(value: string, lexeme: Pick<Lexeme, 'canon
   return visit(0, 0, 0);
 }
 
+/** Select whole food items in order, retaining the longest deterministic match. */
+function matchFoodSubsequence(heldFoods: HeldFood[], spelling: string, normalized: boolean): string[] | null {
+  const target = toHiragana(spelling);
+  let states = new Map<number, string[]>([[0, []]]);
+  for (const food of heldFoods) {
+    const glyph = toHiragana(normalized ? food.normalizedGlyph : food.glyph);
+    if (!glyph) continue;
+    const next = new Map(states);
+    for (const [offset, ids] of states) {
+      if (!target.startsWith(glyph, offset)) continue;
+      const end = offset + glyph.length;
+      const selected = [...ids, food.foodId];
+      if (!next.has(end) || selected.length > next.get(end)!.length) next.set(end, selected);
+    }
+    states = next;
+  }
+  return states.get(target.length) || null;
+}
+
 export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
   status: 'INVALID' | 'PREFIX' | 'WORD_READY';
   candidates: CandidateWord[];
@@ -53,7 +72,7 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
   const surface = heldFoods.map(f => f.glyph).join('');
   const normalized = heldFoods.map(f => f.normalizedGlyph).join('');
 
-  let exactMatches: Lexeme[] = [];
+  const matches: { lexeme: Lexeme; consumedFoodIds: string[]; full: boolean }[] = [];
   let prefixCount = 0;
 
   // Search exact match for full surface or normalized string
@@ -66,7 +85,14 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
     // so normalize both sides before testing the exact completion.
     const normalizedReading = toHiragana(reading);
     if (matchesLexemeSpelling(surface, lexeme) || matchesLexemeSpelling(normalized, lexeme)) {
-      exactMatches.push(lexeme);
+      matches.push({ lexeme, consumedFoodIds: heldFoods.map(food => food.foodId), full: true });
+    } else {
+      // Dictionary canonical/readings only; never enumerate arbitrary food subsets.
+      const selections = [canonical, reading].flatMap(spelling =>
+        [false, true].map(normalized => matchFoodSubsequence(heldFoods, spelling, normalized)))
+        .filter((ids): ids is string[] => ids !== null && ids.length > 0);
+      selections.sort((a, b) => b.length - a.length);
+      if (selections[0]) matches.push({ lexeme, consumedFoodIds: selections[0], full: false });
     }
 
     // Check prefix match
@@ -75,14 +101,15 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
     }
   }
 
-  if (exactMatches.length > 0) {
-    // Remove duplicates
-    const uniqueMatchesMap = new Map<string, Lexeme>();
-    exactMatches.forEach(m => uniqueMatchesMap.set(m.id, m));
-    const validMatches = Array.from(uniqueMatchesMap.values()).filter(lex => calculateReadingLength(lex.reading) >= 2 && Array.from(lex.canonical).length >= 2);
+  if (matches.length > 0) {
+    const uniqueMatchesMap = new Map<string, typeof matches[number]>();
+    matches.forEach(match => { if (!uniqueMatchesMap.has(match.lexeme.id)) uniqueMatchesMap.set(match.lexeme.id, match); });
+    const validMatches = Array.from(uniqueMatchesMap.values())
+      .filter(({ lexeme }) => calculateReadingLength(lexeme.reading) >= 2 && Array.from(lexeme.canonical).length >= 2)
+      .sort((a, b) => Number(b.full) - Number(a.full) || b.consumedFoodIds.length - a.consumedFoodIds.length);
 
     if (validMatches.length > 0) {
-      const candidates: CandidateWord[] = validMatches.map(lex => {
+      const candidates: CandidateWord[] = validMatches.map(({ lexeme: lex, consumedFoodIds }) => {
         const themeMatch = activeTheme === 'free' || lex.themes.includes(activeTheme) || (activeTheme === 'disaster' && Boolean(lex.disasterRelated));
         return {
           id: lex.id,
@@ -90,7 +117,8 @@ export function searchCandidates(heldFoods: HeldFood[], activeTheme: Theme): {
           reading: lex.reading,
           meaning: lex.meaning,
           readingLength: calculateReadingLength(lex.reading),
-          themeMatch
+          themeMatch,
+          consumedFoodIds
         };
       });
 

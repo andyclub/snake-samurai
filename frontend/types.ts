@@ -42,6 +42,8 @@ export interface CandidateWord {
   meaning?: string;
   readingLength: number;
   themeMatch: boolean;
+  /** Selected food IDs recomputed by the authoritative word matcher. */
+  consumedFoodIds?: string[];
 }
 
 export interface CandidateSentence {

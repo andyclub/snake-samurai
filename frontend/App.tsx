@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [bounds, setBounds] = useState<ArenaBounds>(INITIAL_BOUNDS);
   const [themeAlert, setThemeAlert] = useState('');
   const [controlError, setControlError] = useState('');
+  const [movementFailure, setMovementFailure] = useState<{ code: string; status: null; operation: 'connection'; at: string } | null>(null);
   const [tailSpillEffect, setTailSpillEffect] = useState<{ victimId: string; at: number } | null>(null);
 
   // Player State
@@ -66,6 +67,7 @@ const App: React.FC = () => {
   const themeRef = useRef(theme);
   const battleMusicRef = useRef<'BATTLE' | 'BLADE_BATTLE'>('BATTLE');
   const startAttemptForDeadlineRef = useRef<number | null>(null);
+  const resultRecoveryForStartRef = useRef<number | null>(null);
   const serverClockShiftRef = useRef(0);
 
   useEffect(() => { phaseRef.current = phase; }, [phase]);
@@ -129,6 +131,7 @@ const App: React.FC = () => {
       audio.init(); battleMusicRef.current = 'BATTLE'; audio.setBGM('BATTLE');
     }
     setControlError('');
+    setMovementFailure(null);
     return true;
   }, [player.id]);
 
@@ -166,6 +169,18 @@ const App: React.FC = () => {
     }, Math.max(0, deadline - Date.now()));
     return () => window.clearTimeout(timer);
   }, [phase, lobbyEndsAt, requestSnapshot]);
+
+  // Recover a missed terminal frame once; the server still owns settlement.
+  useEffect(() => {
+    if (phase !== GamePhase.PLAYING || startedAt === null || !Number.isFinite(startedAt)) return;
+    const start = startedAt;
+    const timer = window.setTimeout(() => {
+      if (resultRecoveryForStartRef.current === start) return;
+      resultRecoveryForStartRef.current = start;
+      void requestSnapshot();
+    }, Math.max(0, start + 120_000 + 250 - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [phase, startedAt, requestSnapshot]);
 
   // All clients derive both the HUD timer and music stage from the same
   // server-normalized start time, independent of physics host election.
@@ -336,13 +351,17 @@ const App: React.FC = () => {
 
   // Pointer target input
   const handlePointerTarget = (x: number, y: number) => {
-    sendMoveIntent(x, y);
     const mySnakeId = `snake-${player.id}`;
     const s = snakesRef.current[mySnakeId];
-    if (s) {
-      const updated = { ...snakesRef.current, [mySnakeId]: { ...s, target: { x, y } } };
-      snakesRef.current = updated;
-    }
+    if (phaseRef.current !== GamePhase.PLAYING || connection !== 'online' || !s?.connected) return;
+    const predicted = { ...s, target: { x, y } };
+    snakesRef.current = { ...snakesRef.current, [mySnakeId]: predicted };
+    const failed = () => {
+      // A late failed send must not overwrite a newer authoritative snapshot.
+      if (snakesRef.current[mySnakeId] === predicted) snakesRef.current = { ...snakesRef.current, [mySnakeId]: s };
+      setMovementFailure({ code: 'INPUT_NOT_SENT', status: null, operation: 'connection', at: new Date().toISOString() });
+    };
+    void sendMoveIntent(x, y).then(result => { if (result !== 'ok') failed(); }).catch(failed);
   };
 
   // Candidates shown by the UI identify only an index. The host recomputes
@@ -378,7 +397,7 @@ const App: React.FC = () => {
 
   return (
     <div className="w-screen h-[100dvh] bg-slate-950 text-white font-sans overflow-hidden">
-      <ConnectionStatus failure={connectionFailure} busy={connection === 'connecting'} roomId={SNAKE_SAMURAI_ROOM_ID} site="h.kazeabc.com" onRetry={retryConnection} t={key => translations[lang]?.[key] || key} />
+      <ConnectionStatus failure={connectionFailure || movementFailure} busy={connection === 'connecting'} roomId={SNAKE_SAMURAI_ROOM_ID} site="h.kazeabc.com" onRetry={retryConnection} t={key => translations[lang]?.[key] || key} />
       {themeAlert && <div role="alert" className="fixed inset-0 z-[200] grid place-items-center overflow-hidden bg-red-950/55 backdrop-blur-sm animate-pulse">
         <div className="absolute inset-0 opacity-80" style={{background:'linear-gradient(31deg,transparent 46%,#fff 47%,transparent 48%),linear-gradient(147deg,transparent 45%,#fb7185 46%,transparent 47%),linear-gradient(72deg,transparent 52%,#fff 53%,transparent 54%)'}} />
         <div className="relative rounded-3xl border-4 border-red-200 bg-slate-950/90 px-8 py-6 text-center text-2xl font-black shadow-[0_0_80px_#ef4444]">⚡ {translations[lang]?.['error.themeMismatch']}<br/><span className="mt-2 block text-base text-red-200">{themeAlert}</span></div>

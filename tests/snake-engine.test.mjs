@@ -209,3 +209,122 @@ test('helper-driven bot motion is repeatable with synchronous seeded global sour
     Math.random = originalRandom;
   }
 });
+
+test('ordered word subsequences complete 日本語 and scatter only unused ingredients', () => {
+  for (const text of ['日の本語', '日本の語', 'の日本の語']) {
+    const participant = snake('p-one', text);
+    participant.head = { x: bounds.maxX, y: bounds.minY };
+    const source = arena([participant]);
+    for (const item of participant.heldFoods) {
+      source.foods[item.foodId] = {
+        id: item.foodId, displayedGlyph: item.glyph, normalizedGlyph: item.normalizedGlyph,
+        type: item.glyph === 'の' ? 'hiragana' : 'kanji', color: item.color,
+        x: 0, y: 0, collisionRadius: 18, state: 'held', heldByPlayerId: participant.playerId
+      };
+    }
+    const game = engine(source);
+    const candidateIndex = game.snapshot().snakes[participant.id].buildState.candidates.findIndex(candidate => candidate.canonical === '日本語');
+    assert.notEqual(candidateIndex, -1, text);
+    const expectedConsumed = participant.heldFoods.filter(item => item.glyph !== 'の').map(item => item.foodId);
+    assert.deepEqual(game.snapshot().snakes[participant.id].buildState.candidates[candidateIndex].consumedFoodIds, expectedConsumed);
+    const beforeCount = Object.keys(game.snapshot().foods).length;
+    assert.equal(game.settleWord('p-one', candidateIndex).ok, true);
+    const completed = game.snapshot();
+    const settled = completed.snakes[participant.id];
+    assert.equal(settled.completionHistory[0].canonical, '日本語');
+    assert.deepEqual(settled.completionHistory[0].consumedFoodIds, expectedConsumed);
+    assert.equal(settled.earnedLength, 4);
+    assert.equal(settled.heldFoods.length, 0);
+    assert.equal(Object.keys(completed.foods).length, beforeCount, 'no duplicate map food created');
+    for (const item of participant.heldFoods) {
+      if (item.glyph !== 'の') { assert.equal(completed.foods[item.foodId], undefined); continue; }
+      const ground = completed.foods[item.foodId];
+      assert.equal(ground.id, item.foodId);
+      assert.equal(ground.displayedGlyph, item.glyph);
+      assert.equal(ground.normalizedGlyph, item.normalizedGlyph);
+      assert.equal(ground.color, item.color);
+      assert.equal(ground.state, 'ground');
+      assert.equal(ground.heldByPlayerId, null);
+      assert.ok(ground.x >= bounds.minX && ground.x <= bounds.maxX);
+      assert.ok(ground.y >= bounds.minY && ground.y <= bounds.maxY);
+    }
+    assert.equal(game.settleWord('p-one', candidateIndex).ok, false);
+  }
+});
+
+test('word candidates prefer complete spellings and preserve existing mixed spelling', () => {
+  for (const text of ['日本語', 'にほんご', 'に本語']) {
+    const game = engine(arena([snake('p-one', text)]));
+    const candidates = game.snapshot().snakes['snake-p-one'].buildState.candidates;
+    assert.equal(candidates[0].canonical, '日本語', text);
+    assert.deepEqual(candidates[0].consumedFoodIds, held(text).map(item => item.foodId));
+  }
+  const reversed = engine(arena([snake('p-one', '語本日')]));
+  assert.equal(reversed.snapshot().snakes['snake-p-one'].buildState.candidates.some(item => item.canonical === '日本語'), false);
+});
+
+test('subsequence matcher handles a long irrelevant mouth without subset enumeration', () => {
+  const participant = snake('p-one', 'の'.repeat(180) + '日の本語' + 'の'.repeat(180));
+  const game = engine(arena([participant]));
+  const candidate = game.snapshot().snakes[participant.id].buildState.candidates.find(item => item.canonical === '日本語');
+  assert.ok(candidate);
+  assert.equal(candidate.consumedFoodIds.length, 3);
+});
+
+test('trusted disaster subsequence validation rewards only the selected dictionary word', () => {
+  const participant = snake('p-one', 'の日本の語');
+  const initial = arena([participant]);
+  initial.mode = 'disaster';
+  initial.theme = 'disaster';
+  const game = engine(initial);
+  const candidateIndex = game.snapshot().snakes[participant.id].buildState.candidates.findIndex(candidate => candidate.canonical === '日本語');
+  const allIds = participant.heldFoods.map(item => item.foodId);
+  assert.notEqual(candidateIndex, -1);
+  assert.equal(game.settleWord('p-one', candidateIndex).code, 'requires_validation');
+  assert.equal(game.applyWordValidation('p-one', allIds, {
+    ok: true, valid: true, canonical: '日本語', readingLength: 999999,
+    consumedFoodIds: allIds
+  }, candidateIndex).ok, true);
+  const frame = game.snapshot();
+  const settled = frame.snakes[participant.id];
+  assert.equal(settled.earnedLength, 4, 'trusted dictionary reading controls reward');
+  assert.deepEqual(settled.completionHistory[0].consumedFoodIds, ['held-1', 'held-2', 'held-4']);
+  assert.equal(settled.heldFoods.length, 0);
+  for (const id of ['held-0', 'held-3']) {
+    assert.equal(frame.foods[id].id, id);
+    assert.equal(frame.foods[id].displayedGlyph, 'の');
+    assert.equal(frame.foods[id].color, '#123456');
+    assert.equal(frame.foods[id].state, 'ground');
+    assert.equal(frame.foods[id].heldByPlayerId, null);
+    assert.ok(frame.foods[id].x >= bounds.minX + 28 && frame.foods[id].x <= bounds.maxX - 28);
+    assert.ok(frame.foods[id].y >= bounds.minY + 28 && frame.foods[id].y <= bounds.maxY - 28);
+  }
+  assert.equal(Object.keys(frame.foods).filter(id => id.startsWith('replenish-')).length, 3);
+  assert.equal(new Set(Object.values(frame.foods).map(food => food.id)).size, Object.keys(frame.foods).length);
+});
+
+test('trusted selected-word validation rejects mismatched canonical and stale mouth IDs without awarding', () => {
+  const participant = snake('p-one', '日の本語');
+  const initial = arena([participant]);
+  initial.mode = 'disaster';
+  initial.theme = 'disaster';
+  const game = engine(initial);
+  const allIds = participant.heldFoods.map(item => item.foodId);
+  const index = game.snapshot().snakes[participant.id].buildState.candidates.findIndex(candidate => candidate.canonical === '日本語');
+  const unchanged = game.snapshot();
+  for (const [ids, validation, candidateIndex, code] of [
+    [allIds, { ok: true, valid: true, canonical: '学校' }, index, 'validation_mismatch'],
+    [allIds, { ok: true, valid: true }, index, 'validation_mismatch'],
+    [allIds, { ok: true, valid: true, canonical: '日本語' }, 999, 'validation_mismatch'],
+    [allIds, { ok: true, valid: true, canonical: '日本語' }, -1, 'validation_mismatch'],
+    [allIds, { ok: true, valid: true, canonical: '日本語' }, 0.5, 'validation_mismatch'],
+    [[...allIds].reverse(), { ok: true, valid: true, canonical: '日本語' }, index, 'stale_validation'],
+    [allIds.slice(1), { ok: true, valid: true, canonical: '日本語' }, index, 'stale_validation']
+  ]) {
+    const result = game.applyWordValidation('p-one', ids, validation, candidateIndex);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, code);
+    assert.equal(result.changed, false);
+    assert.deepEqual(game.snapshot(), unchanged);
+  }
+});

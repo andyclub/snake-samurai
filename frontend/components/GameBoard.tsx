@@ -406,10 +406,10 @@ export const GameBoard: React.FC<Props> = ({
           )}
         </div>
       )}
-      {mySnake && heldFoods.length > 2 && heldFoods.every(item => /^\p{Script=Han}+$/u.test(item.glyph)) && wordSearch.status !== 'WORD_READY' && !sentenceAnalysis.isSentenceReady && (
+      {mySnake && heldFoods.length > 2 && (
         <button type="button" onClick={onComposeHeldFoods}
-          className="fixed z-40 -translate-x-1/2 -translate-y-full animate-pulse rounded-2xl border-2 border-amber-100 bg-amber-400 px-5 py-3 font-black text-slate-950 shadow-2xl"
-          style={{ left: `${headScreenX}px`, top: `${headScreenY - 60 * zoom}px` }}>
+          className="fixed z-40 -translate-x-1/2 animate-pulse rounded-2xl border-2 border-amber-100 bg-amber-400 px-5 py-3 font-black text-slate-950 shadow-2xl"
+          style={{ left: `${headScreenX}px`, top: `${headScreenY + 60 * zoom}px` }}>
           {mode === 'disaster' ? t('game.composeDisaster') : t('game.composeTry')}
         </button>
       )}

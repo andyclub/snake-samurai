@@ -211,7 +211,7 @@ test('join and exit are explicit scoped intents, and profile cannot enroll the u
   } finally { h.cleanup(); }
 });
 
-function appFixture() {
+function appFixture(configuration = {}) {
   const h = harness(), intents = [], profileChanges = [], audioCalls = [];
   let options;
   const components = Object.fromEntries(['GameBoard', 'LobbyScreen', 'TheaterScreen', 'GameOffScreen', 'ConnectionStatus', 'ScreenWakeLockSetting'].map(name => [name, function Component() {}]));
@@ -219,10 +219,10 @@ function appFixture() {
   const hook = supplied => {
     options = supplied;
     return {
-      userId: 'server-player', isHost: false, isJoined: false, connection: 'online', connectionFailure:null, retryConnection(){}, registrationError: '', onlinePlayers: [],
+      userId: 'server-player', isHost: false, isJoined: false, connection: configuration.connection || 'online', connectionFailure:null, retryConnection(){}, registrationError: '', onlinePlayers: [],
       joinMatch: async isSpectator => { intents.push({ type: 'join', isSpectator }); return 'ok'; },
       sendIntent: async body => { intents.push(body); return 'ok'; },
-      sendMoveIntent: (targetX, targetY) => { intents.push({ type: 'input', targetX, targetY }); },
+      sendMoveIntent: async (targetX, targetY) => { intents.push({ type: 'input', targetX, targetY }); return configuration.moveResult ?? 'ok'; },
       requestSnapshot: async () => { intents.push({ type: 'request_state' }); return 'ok'; },
       broadcastSnapshot: () => { throw new Error('Client must not publish snapshots'); },
       broadcastTailSpill: () => { throw new Error('Client must not publicly spill'); },
@@ -246,7 +246,7 @@ function appFixture() {
   for (const [name, component] of Object.entries(components)) dependencies[`./components/${name}`] = { __esModule: true, default: component };
   const app = h.load('../frontend/App.tsx', dependencies).default;
   h.mount(app);
-  return { h, intents, components, audioCalls, options: () => options, tree: () => h.output() };
+  return { h, intents, components, audioCalls, configuration, options: () => options, tree: () => h.output() };
 }
 
 test('App sends candidate indices/compose/self-spill intents while only updating own target immediately', async () => {
@@ -376,4 +376,54 @@ test('failed initial session recovers canonical identity on verified online and 
     h.cleanup();host.subscriptions[0].onConnection('error',failure);await flush();
     assert.equal(h.output().connectionFailure,null);
   }finally{h.cleanup();}
+});
+
+test('App does not predict or send movement while disconnected or its authoritative snake is disconnected', async () => {
+  const f = appFixture({ connection: 'error' });
+  try {
+    await flush(); f.options().onSnapshot(snapshot(), 0); await flush();
+    let board = find(f.tree(), node => node.type === f.components.GameBoard);
+    board.props.onPointerTarget(500, 100);
+    equal(board.props.snakesRef.current['snake-server-player'].target, {x:1,y:0});
+    equal(f.intents, []);
+    f.configuration.connection = 'online'; f.h.update(); await flush();
+    f.options().onSnapshot(snapshot('PLAYING', {...snake(),connected:false}), 0); await flush();
+    board = find(f.tree(), node => node.type === f.components.GameBoard);
+    board.props.onPointerTarget(500,100);
+    equal(board.props.snakesRef.current['snake-server-player'].target, {x:1,y:0});
+    equal(f.intents, []);
+  } finally { f.h.cleanup(); }
+});
+
+test('failed movement send restores its own prediction and exposes an error without reverting newer authority', async () => {
+  const f=appFixture({moveResult:'error'});
+  try {
+    await flush();f.options().onSnapshot(snapshot(),0);await flush();
+    let board=find(f.tree(),node=>node.type===f.components.GameBoard);
+    board.props.onPointerTarget(500,100);await flush();
+    equal(board.props.snakesRef.current['snake-server-player'].target,{x:1,y:0});
+    assert.equal(find(f.tree(),node=>node.type===f.components.ConnectionStatus).props.failure.code,'INPUT_NOT_SENT');
+    let resolve;f.configuration.moveResult=new Promise(done=>{resolve=done;});
+    board=find(f.tree(),node=>node.type===f.components.GameBoard);
+    board.props.onPointerTarget(600,100);
+    f.options().onSnapshot(snapshot('PLAYING',{...snake(),target:{x:700,y:200}}),0);await flush();
+    resolve('error');await flush();
+    equal(board.props.snakesRef.current['snake-server-player'].target,{x:700,y:200});
+  } finally {f.h.cleanup();}
+});
+
+test('a missed terminal frame triggers exactly one deadline recovery and settlement still requires server authority',async()=>{
+ const f=appFixture();
+ try {
+  await flush();f.options().onSnapshot(snapshot(),0);await flush();
+  const timers=[...f.h.timers.values()].filter(timer=>!timer.interval);
+  assert.equal(timers.length,1);assert.equal(timers[0].delay,110250);
+  timers[0].callback();timers[0].callback();await flush();
+  equal(f.intents,[{type:'request_state'}]);
+  assert.ok(find(f.tree(),node=>node.type===f.components.GameBoard));
+  assert.equal(find(f.tree(),node=>node.type===f.components.TheaterScreen),undefined);
+  f.options().onSnapshot(snapshot('THEATER'),0);await flush();
+  assert.ok(find(f.tree(),node=>node.type===f.components.TheaterScreen));
+  assert.equal(find(f.tree(),node=>node.type===f.components.GameBoard),undefined);
+ }finally{f.h.cleanup();}
 });
