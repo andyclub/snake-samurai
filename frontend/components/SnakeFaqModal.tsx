@@ -79,10 +79,11 @@ const SnakeDemoCanvas: React.FC<{ kind: DemoKind; color: string; name: string }>
   </div>;
 };
 
-interface Props { homeHelp?: boolean; homeHelpItems?: string[]; homeHelpT?: (key: string) => string; lang: Language; playerColor: string; playerName: string; onClose: () => void }
-const SnakeFaqModal: React.FC<Props> = ({ lang, playerColor, playerName, onClose, homeHelp = false, homeHelpItems, homeHelpT }) => {
+interface Props { homeHelp?: boolean; includeHomeHelp?: boolean; homeHelpItems?: string[]; homeHelpT?: (key: string) => string; lang: Language; playerColor: string; playerName: string; onClose: () => void }
+const SnakeFaqModal: React.FC<Props> = ({ lang, playerColor, playerName, onClose, homeHelp = false, includeHomeHelp = false, homeHelpItems, homeHelpT }) => {
   const t = labels[lang];
   const help = (key: string) => { const localized = homeHelpT?.(key); return localized && localized !== key ? localized : translations[lang]?.[key] || translations.en[key] || key; };
+  const lobbyHelpItems = homeHelpItems || ["join", "watch", "profile", "arena", "language", "invite", "feedback", "wake", "connection", "closeItem"];
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   useEffect(() => {
@@ -123,6 +124,7 @@ const SnakeFaqModal: React.FC<Props> = ({ lang, playerColor, playerName, onClose
           </article>)}
       </div>
     </div>
+      {includeHomeHelp && <section className="mx-auto w-full max-w-5xl border-t border-white/10 px-4 py-6 sm:px-6"><h3 className="text-xl font-black text-cyan-100">{help('homeHelp.title')}</h3><p className="mt-2 text-sm leading-relaxed text-slate-400">{help('homeHelp.gameHelp.body')}</p><div className="mt-4 grid gap-3 sm:grid-cols-2">{lobbyHelpItems.map(key => <article key={key} className="rounded-2xl border border-white/10 bg-white/[.05] p-4"><h4 className="font-black text-cyan-200">{help('homeHelp.' + key + '.title')}</h4><p className="mt-2 text-sm leading-relaxed text-slate-300">{help('homeHelp.' + key + '.body')}</p></article>)}</div></section>}
     <style>{`
       .snake-demo-stage{position:relative;margin-top:1rem;height:11rem;overflow:hidden;border-radius:1rem;background:#0f172a;contain:paint}
       .snake-demo-stage canvas{display:block;max-width:100%}
