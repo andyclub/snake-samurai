@@ -249,7 +249,7 @@ export const LobbyScreen: React.FC<Props> = ({
       </div>
 
       {/* FAQ / Rules Modal */}
-      {showRulesModal && <SnakeFaqModal homeHelp lang={lang} playerColor={selectedColor} playerName={nameInput} onClose={() => setShowRulesModal(false)} />}
+      {showRulesModal && <SnakeFaqModal lang={lang} playerColor={selectedColor} playerName={nameInput} onClose={() => setShowRulesModal(false)} />}
       {false && showRulesModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-cyan-500/40 rounded-3xl p-6 max-w-md w-full text-left space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
